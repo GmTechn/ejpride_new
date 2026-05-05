@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:ejp_ride_version/elements/mytextfield.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
@@ -69,7 +70,10 @@ class _ProfilePageState extends State<ProfilePage> {
                   },
                 ),
                 ListTile(
-                  leading: const Icon(Icons.camera_alt, color: Colors.green),
+                  leading: const Icon(
+                    CupertinoIcons.camera,
+                    color: Colors.green,
+                  ),
                   title: const Text(
                     'Take a Photo',
                     style: TextStyle(color: Colors.white),
@@ -119,7 +123,7 @@ class _ProfilePageState extends State<ProfilePage> {
                         : null,
                     child: _profileImage == null
                         ? const Icon(
-                            Icons.camera_alt,
+                            CupertinoIcons.camera,
                             color: Colors.white70,
                             size: 38,
                           )
@@ -211,20 +215,6 @@ class _ProfilePageState extends State<ProfilePage> {
                     validator: (value) {
                       if (value == null || value.isEmpty) {
                         return 'Plate number is required';
-                      }
-                      return null;
-                    },
-                  ),
-
-                  const SizedBox(height: 14),
-
-                  MyTextFormField(
-                    labelText: 'Available Seats',
-                    hintText: 'Example: 4',
-                    keyboardType: TextInputType.number,
-                    validator: (value) {
-                      if (value == null || value.isEmpty) {
-                        return 'Available seats are required';
                       }
                       return null;
                     },
