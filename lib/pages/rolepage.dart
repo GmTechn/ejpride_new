@@ -1,4 +1,4 @@
-import 'package:ejp_ride_version/pages/profile.dart';
+import 'package:ejp_ride_version/pages/setup.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 
@@ -9,60 +9,62 @@ class RolePage extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color.fromARGB(255, 28, 28, 47),
+
       body: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24),
+          padding: const EdgeInsets.symmetric(horizontal: 20),
+
           child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+
             children: [
-              const SizedBox(height: 90),
+              const SizedBox(height: 60),
 
               const Text(
                 'Choose your role',
-                textAlign: TextAlign.center,
                 style: TextStyle(
                   color: Colors.white,
                   fontSize: 18,
-                  fontWeight: FontWeight.bold,
+                  fontWeight: FontWeight.w600,
                 ),
               ),
 
-              const SizedBox(height: 12),
+              const SizedBox(height: 10),
 
               const Text(
-                'Tell us how you will use Ejp Ride',
-                textAlign: TextAlign.center,
-
-                style: TextStyle(color: Colors.white70, fontSize: 14),
+                'How will you use Ejp Ride?',
+                style: TextStyle(color: Colors.white60, fontSize: 13),
               ),
 
-              const SizedBox(height: 60),
+              const SizedBox(height: 30),
 
-              _RoleCard(
-                icon: CupertinoIcons.person_fill,
+              _RoleTile(
+                icon: CupertinoIcons.person,
                 title: 'Passenger',
-                subtitle: 'I need a ride to church',
+
                 onTap: () {
                   Navigator.push(
                     context,
                     MaterialPageRoute(
                       builder: (context) =>
-                          const ProfilePage(role: 'passenger'),
+                          const ProfileSetUpPage(role: 'passenger'),
                     ),
                   );
                 },
               ),
 
-              const SizedBox(height: 20),
+              const SizedBox(height: 12),
 
-              _RoleCard(
-                icon: CupertinoIcons.car_detailed,
+              _RoleTile(
+                icon: CupertinoIcons.car,
                 title: 'Driver',
-                subtitle: 'I can pick up people',
+
                 onTap: () {
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (context) => const ProfilePage(role: 'driver'),
+                      builder: (context) =>
+                          const ProfileSetUpPage(role: 'driver'),
                     ),
                   );
                 },
@@ -75,16 +77,14 @@ class RolePage extends StatelessWidget {
   }
 }
 
-class _RoleCard extends StatelessWidget {
+class _RoleTile extends StatelessWidget {
   final IconData icon;
   final String title;
-  final String subtitle;
   final VoidCallback onTap;
 
-  const _RoleCard({
+  const _RoleTile({
     required this.icon,
     required this.title,
-    required this.subtitle,
     required this.onTap,
   });
 
@@ -92,52 +92,47 @@ class _RoleCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: onTap,
+
       child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(22),
+        padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 14),
+
         decoration: BoxDecoration(
           color: const Color.fromARGB(255, 38, 38, 60),
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: Colors.white12),
+          borderRadius: BorderRadius.circular(14),
         ),
+
         child: Row(
           children: [
             Container(
-              padding: const EdgeInsets.all(14),
+              padding: const EdgeInsets.all(10),
+
               decoration: BoxDecoration(
                 // ignore: deprecated_member_use
                 color: Colors.green.withOpacity(0.15),
                 shape: BoxShape.circle,
               ),
-              child: Icon(icon, color: Colors.green, size: 32),
+
+              child: Icon(icon, color: Colors.green, size: 22),
             ),
 
-            const SizedBox(width: 18),
+            const SizedBox(width: 14),
 
             Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-
-                  const SizedBox(height: 5),
-
-                  Text(
-                    subtitle,
-                    style: const TextStyle(color: Colors.white60, fontSize: 13),
-                  ),
-                ],
+              child: Text(
+                title,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w500,
+                ),
               ),
             ),
 
-            const Icon(CupertinoIcons.chevron_right, color: Colors.white38),
+            const Icon(
+              CupertinoIcons.chevron_right,
+              color: Colors.white38,
+              size: 18,
+            ),
           ],
         ),
       ),

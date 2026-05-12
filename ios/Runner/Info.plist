@@ -26,10 +26,14 @@
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>This app needs access to your photo library to select a profile picture.</string>
 	<key>NSCameraUsageDescription</key>
 	<string>This app needs access to your camera to take a profile picture.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>This app needs your location to show where you are on the map.</string>
+
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>
@@ -51,6 +55,7 @@
 			</array>
 		</dict>
 	</dict>
+
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
 	<key>UILaunchStoryboardName</key>
@@ -72,3 +77,5 @@
 	</array>
 </dict>
 </plist>
+
+

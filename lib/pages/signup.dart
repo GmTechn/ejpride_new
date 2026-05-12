@@ -1,4 +1,5 @@
 import 'package:ejp_ride_version/elements/mytextfield.dart';
+import 'package:ejp_ride_version/firebase/firebase.dart';
 import 'package:ejp_ride_version/pages/rolepage.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
@@ -13,6 +14,53 @@ class SignUpPage extends StatefulWidget {
 
 class _SignUpPageState extends State<SignUpPage> {
   final _formKey = GlobalKey<FormState>();
+
+  final emailController = TextEditingController();
+  final passwordController = TextEditingController();
+  final confirmPasswordController = TextEditingController();
+
+  final AuthService _authService = AuthService();
+
+  bool isLoading = false;
+
+  Future<void> signUp() async {
+    if (_formKey.currentState!.validate()) {
+      if (passwordController.text.trim() !=
+          confirmPasswordController.text.trim()) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text("Passwords do not match")));
+
+        return;
+      }
+
+      setState(() {
+        isLoading = true;
+      });
+
+      try {
+        await _authService.signUp(
+          email: emailController.text.trim(),
+          password: passwordController.text.trim(),
+        );
+
+        if (!mounted) return;
+
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => const RolePage()),
+        );
+      } catch (e) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(e.toString())));
+      }
+
+      setState(() {
+        isLoading = false;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -65,6 +113,7 @@ class _SignUpPageState extends State<SignUpPage> {
                   const SizedBox(height: 30),
 
                   MyTextFormField(
+                    controller: emailController,
                     labelText: 'Email',
                     hintText: 'Enter your email',
                     keyboardType: TextInputType.emailAddress,
@@ -72,9 +121,11 @@ class _SignUpPageState extends State<SignUpPage> {
                       if (value == null || value.isEmpty) {
                         return 'Email is required';
                       }
+
                       if (!value.contains('@')) {
                         return 'Enter a valid email';
                       }
+
                       return null;
                     },
                   ),
@@ -82,6 +133,7 @@ class _SignUpPageState extends State<SignUpPage> {
                   const SizedBox(height: 16),
 
                   MyTextFormField(
+                    controller: passwordController,
                     labelText: 'Password',
                     hintText: 'Create a password',
                     obscureText: true,
@@ -89,9 +141,11 @@ class _SignUpPageState extends State<SignUpPage> {
                       if (value == null || value.isEmpty) {
                         return 'Password is required';
                       }
+
                       if (value.length < 6) {
                         return 'Password must be at least 6 characters';
                       }
+
                       return null;
                     },
                   ),
@@ -99,6 +153,7 @@ class _SignUpPageState extends State<SignUpPage> {
                   const SizedBox(height: 16),
 
                   MyTextFormField(
+                    controller: confirmPasswordController,
                     labelText: 'Confirm Password',
                     hintText: 'Confirm your password',
                     obscureText: true,
@@ -106,6 +161,7 @@ class _SignUpPageState extends State<SignUpPage> {
                       if (value == null || value.isEmpty) {
                         return 'Please confirm your password';
                       }
+
                       return null;
                     },
                   ),
@@ -122,23 +178,17 @@ class _SignUpPageState extends State<SignUpPage> {
                           borderRadius: BorderRadius.circular(14),
                         ),
                       ),
-                      onPressed: () {
-                        if (_formKey.currentState!.validate()) {
-                          // Sign up logic later
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(builder: (context) => RolePage()),
-                          );
-                        }
-                      },
-                      child: const Text(
-                        'Create Account',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 17,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
+                      onPressed: isLoading ? null : signUp,
+                      child: isLoading
+                          ? const CircularProgressIndicator(color: Colors.white)
+                          : const Text(
+                              'Create Account',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 17,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
                     ),
                   ),
 
@@ -151,6 +201,7 @@ class _SignUpPageState extends State<SignUpPage> {
                         'Already have an account? ',
                         style: TextStyle(color: Colors.white70),
                       ),
+
                       GestureDetector(
                         onTap: () {
                           Navigator.pop(context);
