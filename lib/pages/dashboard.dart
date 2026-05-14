@@ -1,6 +1,7 @@
 // ignore_for_file: deprecated_member_use
 
 import 'dart:io';
+import 'package:dio/dio.dart';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:ejp_ride_version/pages/profilepage.dart';
@@ -31,11 +32,16 @@ class DashboardPage extends StatefulWidget {
 }
 
 class _DashboardPageState extends State<DashboardPage> {
+  final Dio dio = Dio();
+
+  final String googleApiKey = 'AIzaSyDeKQL_4I2p_VESfOV2wiivm0LC8oefbDw';
+
   File? dashboardProfileImage;
 
   final pickupController = TextEditingController();
   final dropoffController = TextEditingController();
   final favoriteLabelController = TextEditingController();
+  String activeAddressField = 'destination';
 
   String pickupType = 'meeting_point';
   String? selectedMeetingPoint;
@@ -66,6 +72,8 @@ class _DashboardPageState extends State<DashboardPage> {
     favoriteLabelController.dispose();
     super.dispose();
   }
+
+  //Submit request function
 
   Future<void> submitRideRequest() async {
     final user = FirebaseAuth.instance.currentUser;
@@ -135,6 +143,27 @@ class _DashboardPageState extends State<DashboardPage> {
     });
   }
 
+  //get address suggestion function
+  Future<List<String>> getAddressSuggestions(String input) async {
+    if (input.trim().length < 3) return [];
+
+    final response = await dio.get(
+      'https://maps.googleapis.com/maps/api/place/autocomplete/json',
+      queryParameters: {
+        'input': input,
+        'key': googleApiKey,
+        'components': 'country:ca',
+        'language': 'fr',
+      },
+    );
+
+    final predictions = response.data['predictions'] as List;
+
+    return predictions
+        .map((prediction) => prediction['description'].toString())
+        .toList();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -183,6 +212,12 @@ class _DashboardPageState extends State<DashboardPage> {
                         name: widget.name,
                         pickupController: pickupController,
                         dropoffController: dropoffController,
+                        activeAddressField: activeAddressField,
+                        onActiveAddressFieldChanged: (value) {
+                          setState(() {
+                            activeAddressField = value;
+                          });
+                        },
                         pickupType: pickupType,
                         selectedMeetingPoint: selectedMeetingPoint,
                         meetingPoints: meetingPoints,
@@ -202,9 +237,6 @@ class _DashboardPageState extends State<DashboardPage> {
                         onFavoriteSelected: (value) {
                           setState(() {
                             selectedFavoriteAddress = value;
-                            if (value != null) {
-                              dropoffController.text = value;
-                            }
                           });
                         },
                         onSaveFavoriteChanged: (value) {
@@ -296,6 +328,17 @@ class _TopBar extends StatelessWidget {
   }
 }
 
+String _favoriteIconName(String label) {
+  final lower = label.toLowerCase();
+
+  if (lower.contains('maison')) return 'home';
+  if (lower.contains('église') || lower.contains('eglise')) return 'church';
+  if (lower.contains('école') || lower.contains('ecole')) return 'school';
+  if (lower.contains('travail')) return 'work';
+
+  return 'other';
+}
+
 class _PassengerSection extends StatelessWidget {
   final String name;
   final TextEditingController pickupController;
@@ -316,6 +359,9 @@ class _PassengerSection extends StatelessWidget {
 
   final VoidCallback onSubmit;
 
+  final String activeAddressField;
+  final void Function(String) onActiveAddressFieldChanged;
+
   const _PassengerSection({
     required this.name,
     required this.pickupController,
@@ -331,6 +377,8 @@ class _PassengerSection extends StatelessWidget {
     required this.onFavoriteSelected,
     required this.onSaveFavoriteChanged,
     required this.onSubmit,
+    required this.activeAddressField,
+    required this.onActiveAddressFieldChanged,
   });
 
   double progressValue(String status) {
@@ -541,7 +589,6 @@ class _PassengerSection extends StatelessWidget {
                         ),
                       ),
                     ),
-
                     Expanded(
                       child: GestureDetector(
                         onTap: () => onPickupTypeChanged('home_address'),
@@ -554,7 +601,7 @@ class _PassengerSection extends StatelessWidget {
                             borderRadius: BorderRadius.circular(11),
                           ),
                           child: Text(
-                            'Chez moi',
+                            'Adresse personnelle',
                             textAlign: TextAlign.center,
                             style: TextStyle(
                               color: pickupType == 'home_address'
@@ -581,112 +628,64 @@ class _PassengerSection extends StatelessWidget {
                 ),
 
               if (pickupType == 'home_address')
-                _DashboardField(
-                  controller: pickupController,
-                  label: 'Adresse de ramassage',
-                  icon: Icons.location_on_outlined,
+                Focus(
+                  onFocusChange: (hasFocus) {
+                    if (hasFocus) {
+                      onActiveAddressFieldChanged('pickup');
+                    }
+                  },
+                  child: _DashboardField(
+                    controller: pickupController,
+                    label: 'Adresse de ramassage',
+                    icon: Icons.location_on_outlined,
+                  ),
                 ),
 
-              const SizedBox(height: 14),
+              const SizedBox(height: 10),
 
-              _DashboardField(
-                controller: dropoffController,
-                label: 'Destination',
-                icon: CupertinoIcons.flag_fill,
+              Focus(
+                onFocusChange: (hasFocus) {
+                  if (hasFocus) {
+                    onActiveAddressFieldChanged('destination');
+                  }
+                },
+                child: _DashboardField(
+                  controller: dropoffController,
+                  label: 'Destination',
+                  icon: CupertinoIcons.flag_fill,
+                ),
               ),
 
-              const SizedBox(height: 8),
+              const SizedBox(height: 6),
+
+              const SizedBox(height: 6),
 
               Align(
                 alignment: Alignment.centerRight,
-                child: TextButton.icon(
-                  onPressed: () {
-                    showDialog(
-                      context: context,
-                      builder: (context) {
-                        return AlertDialog(
-                          backgroundColor: const Color.fromARGB(
-                            255,
-                            38,
-                            38,
-                            60,
-                          ),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(18),
-                          ),
-                          title: const Text(
-                            'Ajouter aux favoris',
-                            style: TextStyle(color: Colors.white),
-                          ),
-                          content: TextField(
-                            controller: favoriteLabelController,
-                            style: const TextStyle(color: Colors.white),
-                            decoration: InputDecoration(
-                              hintText: 'Nom du favori',
-                              hintStyle: const TextStyle(color: Colors.white38),
-                              filled: true,
-                              fillColor: const Color.fromARGB(255, 28, 28, 47),
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(14),
-                              ),
-                            ),
-                          ),
-                          actions: [
-                            TextButton(
-                              onPressed: () => Navigator.pop(context),
-                              child: const Text('Annuler'),
-                            ),
-                            TextButton(
-                              onPressed: () async {
-                                final user = FirebaseAuth.instance.currentUser;
-
-                                if (user == null ||
-                                    dropoffController.text.trim().isEmpty) {
-                                  Navigator.pop(context);
-                                  return;
-                                }
-
-                                await FirebaseFirestore.instance
-                                    .collection('users')
-                                    .doc(user.uid)
-                                    .collection('favorite_addresses')
-                                    .add({
-                                      'label':
-                                          favoriteLabelController.text
-                                              .trim()
-                                              .isEmpty
-                                          ? 'Favori'
-                                          : favoriteLabelController.text.trim(),
-                                      'address': dropoffController.text.trim(),
-                                      'createdAt': FieldValue.serverTimestamp(),
-                                    });
-
-                                favoriteLabelController.clear();
-
-                                if (context.mounted) Navigator.pop(context);
-                              },
-                              child: const Text('Enregistrer'),
-                            ),
-                          ],
-                        );
-                      },
-                    );
-                  },
-                  icon: const Icon(
-                    CupertinoIcons.star,
-                    color: Colors.green,
-                    size: 15,
-                  ),
-                  label: const Text(
-                    'Ajouter aux favoris',
-                    style: TextStyle(color: Colors.green, fontSize: 12),
+                child: Tooltip(
+                  message: 'Enregistrer comme favori',
+                  child: Checkbox(
+                    value: false,
+                    onChanged: (_) {
+                      _showFavoriteDialog(
+                        context: context,
+                        favoriteLabelController: favoriteLabelController,
+                        dropoffController: dropoffController,
+                      );
+                    },
+                    activeColor: Colors.green,
+                    side: const BorderSide(color: Colors.white54),
                   ),
                 ),
               ),
-              const SizedBox(height: 10),
+
+              const SizedBox(height: 16),
 
               _FavoriteAddressButtons(
-                dropoffController: dropoffController,
+                title: 'Favoris récents',
+                targetController: activeAddressField == 'pickup'
+                    ? pickupController
+                    : dropoffController,
                 onFavoriteSelected: onFavoriteSelected,
               ),
 
@@ -719,6 +718,89 @@ class _PassengerSection extends StatelessWidget {
       },
     );
   }
+
+  void _showFavoriteDialog({
+    required BuildContext context,
+    required TextEditingController favoriteLabelController,
+    required TextEditingController dropoffController,
+  }) {
+    final addressController = TextEditingController(
+      text: dropoffController.text.trim(),
+    );
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          backgroundColor: const Color.fromARGB(255, 38, 38, 60),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(18),
+          ),
+          title: const Text(
+            'Enregistrer comme favori',
+            style: TextStyle(color: Colors.white, fontSize: 14),
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _DashboardField(
+                controller: favoriteLabelController,
+                label: 'Nom du favori',
+                icon: CupertinoIcons.star_fill,
+              ),
+              const SizedBox(height: 12),
+              _DashboardField(
+                controller: addressController,
+                label: 'Adresse complète',
+                icon: CupertinoIcons.location_fill,
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                favoriteLabelController.clear();
+                Navigator.pop(context);
+              },
+              child: const Text('Annuler', style: TextStyle(color: Colors.red)),
+            ),
+            TextButton(
+              onPressed: () async {
+                final user = FirebaseAuth.instance.currentUser;
+
+                if (user == null || addressController.text.trim().isEmpty) {
+                  return;
+                }
+
+                await FirebaseFirestore.instance
+                    .collection('users')
+                    .doc(user.uid)
+                    .collection('favorite_addresses')
+                    .add({
+                      'label': favoriteLabelController.text.trim().isEmpty
+                          ? 'Favori'
+                          : favoriteLabelController.text.trim(),
+                      'icon': _favoriteIconName(
+                        favoriteLabelController.text.trim(),
+                      ),
+                      'address': addressController.text.trim(),
+                      'createdAt': FieldValue.serverTimestamp(),
+                    });
+
+                favoriteLabelController.clear();
+
+                if (context.mounted) Navigator.pop(context);
+              },
+              child: const Text(
+                'Enregistrer',
+                style: TextStyle(color: Colors.green),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
 }
 
 class _MeetingPointDropdown extends StatelessWidget {
@@ -738,6 +820,11 @@ class _MeetingPointDropdown extends StatelessWidget {
       value: selectedMeetingPoint,
       dropdownColor: const Color.fromARGB(255, 28, 28, 47),
       decoration: InputDecoration(
+        isDense: true,
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 12,
+          vertical: 12,
+        ),
         labelText: 'Point de rencontre',
         labelStyle: const TextStyle(color: Colors.white70, fontSize: 12),
         prefixIcon: const Icon(Icons.place, color: Colors.green),
@@ -765,13 +852,42 @@ class _MeetingPointDropdown extends StatelessWidget {
 }
 
 class _FavoriteAddressButtons extends StatelessWidget {
-  final TextEditingController dropoffController;
+  final String title;
+  final TextEditingController targetController;
   final void Function(String?) onFavoriteSelected;
 
   const _FavoriteAddressButtons({
-    required this.dropoffController,
+    required this.title,
+    required this.targetController,
     required this.onFavoriteSelected,
   });
+
+  IconData getFavoriteIcon(String iconName) {
+    switch (iconName) {
+      case 'home':
+        return CupertinoIcons.house_fill;
+      case 'church':
+        return Icons.church;
+      case 'school':
+        return CupertinoIcons.book_fill;
+      case 'work':
+        return CupertinoIcons.briefcase_fill;
+      default:
+        return CupertinoIcons.star_fill;
+    }
+  }
+
+  Future<void> deleteFavorite(String docId) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    await FirebaseFirestore.instance
+        .collection('users')
+        .doc(user.uid)
+        .collection('favorite_addresses')
+        .doc(docId)
+        .delete();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -782,7 +898,7 @@ class _FavoriteAddressButtons extends StatelessWidget {
           .collection('favorite_addresses')
           .snapshots(),
       builder: (context, snapshot) {
-        final favorites = snapshot.data?.docs ?? [];
+        final favorites = (snapshot.data?.docs ?? []).take(3).toList();
 
         if (favorites.isEmpty) {
           return const SizedBox.shrink();
@@ -791,52 +907,162 @@ class _FavoriteAddressButtons extends StatelessWidget {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _SectionLabel('Destination rapide'),
-            const SizedBox(height: 10),
+            _SectionLabel(title),
+            const SizedBox(height: 8),
+
             Column(
               children: favorites.map((doc) {
                 final data = doc.data() as Map<String, dynamic>;
                 final label = data['label'] ?? 'Favori';
                 final address = data['address'] ?? '';
+                final iconName = data['icon'] ?? 'other';
 
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
-                  child: GestureDetector(
-                    onTap: () {
-                      dropoffController.text = address;
-                      onFavoriteSelected(address);
-                    },
-                    child: Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 14,
-                        vertical: 12,
-                      ),
-
-                      child: Row(
-                        children: [
-                          Icon(
-                            CupertinoIcons.star_fill,
-                            color: Colors.green,
-                            size: 14,
-                          ),
-                          SizedBox(width: 5),
-                          Text(
-                            label,
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 13,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ],
-                      ),
+                return ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  dense: true,
+                  leading: Icon(
+                    getFavoriteIcon(iconName),
+                    color: Colors.green,
+                    size: 18,
+                  ),
+                  title: Text(
+                    label,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
                     ),
+                  ),
+                  subtitle: Text(
+                    address,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(color: Colors.white54, fontSize: 11),
+                  ),
+                  onTap: () {
+                    targetController.text = address;
+                    onFavoriteSelected(address);
+                  },
+                  trailing: PopupMenuButton<String>(
+                    color: const Color.fromARGB(255, 38, 38, 60),
+                    icon: const Icon(
+                      CupertinoIcons.ellipsis_vertical,
+                      color: Colors.white54,
+                      size: 18,
+                    ),
+                    onSelected: (value) async {
+                      if (value == 'delete') {
+                        await deleteFavorite(doc.id);
+                      }
+
+                      if (value == 'edit') {
+                        final labelController = TextEditingController(
+                          text: label,
+                        );
+                        final addressController = TextEditingController(
+                          text: address,
+                        );
+
+                        showDialog(
+                          // ignore: use_build_context_synchronously
+                          context: context,
+                          builder: (context) {
+                            return AlertDialog(
+                              backgroundColor: const Color.fromARGB(
+                                255,
+                                38,
+                                38,
+                                60,
+                              ),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(18),
+                              ),
+                              title: const Text(
+                                'Modifier le favori',
+                                style: TextStyle(color: Colors.white),
+                              ),
+                              content: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  _DashboardField(
+                                    controller: labelController,
+                                    label: 'Nom du favori',
+                                    icon: CupertinoIcons.star_fill,
+                                  ),
+                                  const SizedBox(height: 12),
+                                  _DashboardField(
+                                    controller: addressController,
+                                    label: 'Adresse',
+                                    icon: CupertinoIcons.location_fill,
+                                  ),
+                                ],
+                              ),
+                              actions: [
+                                TextButton(
+                                  onPressed: () => Navigator.pop(context),
+                                  child: const Text(
+                                    'Annuler',
+                                    style: TextStyle(color: Colors.red),
+                                  ),
+                                ),
+                                TextButton(
+                                  onPressed: () async {
+                                    await FirebaseFirestore.instance
+                                        .collection('users')
+                                        .doc(
+                                          FirebaseAuth
+                                              .instance
+                                              .currentUser!
+                                              .uid,
+                                        )
+                                        .collection('favorite_addresses')
+                                        .doc(doc.id)
+                                        .update({
+                                          'label': labelController.text.trim(),
+                                          'address': addressController.text
+                                              .trim(),
+                                          'icon': _favoriteIconName(
+                                            labelController.text.trim(),
+                                          ),
+                                        });
+
+                                    if (context.mounted) {
+                                      Navigator.pop(context);
+                                    }
+                                  },
+                                  child: const Text(
+                                    'Enregistrer',
+                                    style: TextStyle(color: Colors.green),
+                                  ),
+                                ),
+                              ],
+                            );
+                          },
+                        );
+                      }
+                    },
+                    itemBuilder: (context) => const [
+                      PopupMenuItem(
+                        value: 'edit',
+                        child: Text(
+                          'Modifier',
+                          style: TextStyle(color: Colors.white),
+                        ),
+                      ),
+                      PopupMenuItem(
+                        value: 'delete',
+                        child: Text(
+                          'Supprimer',
+                          style: TextStyle(color: Colors.red),
+                        ),
+                      ),
+                    ],
                   ),
                 );
               }).toList(),
             ),
-            const SizedBox(height: 18),
+
+            const SizedBox(height: 14),
           ],
         );
       },
@@ -1253,11 +1479,21 @@ class _DashboardField extends StatelessWidget {
     return TextField(
       controller: controller,
       cursorColor: Colors.white,
-      style: const TextStyle(color: Colors.white),
+      style: const TextStyle(color: Colors.white, fontSize: 13),
       decoration: InputDecoration(
-        prefixIcon: Icon(icon, color: Colors.green),
+        suffixIcon: controller.text.isNotEmpty
+            ? IconButton(
+                icon: const Icon(
+                  CupertinoIcons.xmark_circle_fill,
+                  color: Colors.white54,
+                  size: 18,
+                ),
+                onPressed: controller.clear,
+              )
+            : null,
+        prefixIcon: Icon(icon, color: Colors.green, size: 14),
         labelText: label,
-        labelStyle: const TextStyle(color: Colors.white70),
+        labelStyle: const TextStyle(color: Colors.white70, fontSize: 12),
         filled: true,
         fillColor: const Color.fromARGB(255, 28, 28, 47),
         enabledBorder: OutlineInputBorder(
