@@ -1,5 +1,7 @@
 import 'package:ejp_ride_version/elements/mytextfield.dart';
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 class RequestRidePage extends StatefulWidget {
   const RequestRidePage({super.key});
@@ -9,17 +11,30 @@ class RequestRidePage extends StatefulWidget {
 }
 
 class _RequestRidePageState extends State<RequestRidePage> {
+  final pickupController = TextEditingController();
+  final phoneController = TextEditingController();
+  final notesController = TextEditingController();
+
+  bool isLoading = false;
   final _formKey = GlobalKey<FormState>();
 
   String? selectedZone;
 
-  final List<String> zones = [
-    'Hull',
-    'Gatineau-Gatineau',
-    'Plateau - Aylmer',
-    'Ottawa Est',
-    'Orléans',
+  final List<String> meetingPoints = [
+    'Hull — Galeries de Hull',
+    'Gatineau — Les Promenades Gatineau',
+    'Plateau / Aylmer — Galeries d’Aylmer',
+    'Ottawa — Centre Rideau',
+    'Orléans — Centre commercial Saint-Laurent',
   ];
+
+  @override
+  void dispose() {
+    pickupController.dispose();
+    phoneController.dispose();
+    notesController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -67,7 +82,7 @@ class _RequestRidePageState extends State<RequestRidePage> {
 
                 _ZoneDropdown(
                   value: selectedZone,
-                  zones: zones,
+                  zones: meetingPoints,
                   onChanged: (value) {
                     setState(() {
                       selectedZone = value;
@@ -78,6 +93,7 @@ class _RequestRidePageState extends State<RequestRidePage> {
                 const SizedBox(height: 14),
 
                 MyTextFormField(
+                  controller: pickupController,
                   labelText: 'Pickup Address',
                   hintText: 'Enter your address',
                   validator: (value) {
@@ -91,6 +107,7 @@ class _RequestRidePageState extends State<RequestRidePage> {
                 const SizedBox(height: 14),
 
                 MyTextFormField(
+                  controller: phoneController,
                   labelText: 'Phone Number',
                   hintText: 'Enter your phone number',
                   keyboardType: TextInputType.phone,
@@ -122,27 +139,57 @@ class _RequestRidePageState extends State<RequestRidePage> {
                         borderRadius: BorderRadius.circular(14),
                       ),
                     ),
-                    onPressed: () {
-                      if (_formKey.currentState!.validate()) {
-                        // Save request later with Firebase
+                    onPressed: isLoading
+                        ? null
+                        : () async {
+                            if (!_formKey.currentState!.validate()) return;
 
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Ride request submitted'),
+                            final user = FirebaseAuth.instance.currentUser;
+                            if (user == null) return;
+
+                            setState(() {
+                              isLoading = true;
+                            });
+
+                            await FirebaseFirestore.instance
+                                .collection('ride_requests')
+                                .add({
+                                  'userId': user.uid,
+                                  'email': user.email,
+                                  'zone': selectedZone,
+                                  'pickupAddress': pickupController.text.trim(),
+                                  'phone': phoneController.text.trim(),
+                                  'notes': notesController.text.trim(),
+                                  'status': 'waiting',
+                                  'createdAt': FieldValue.serverTimestamp(),
+                                });
+
+                            if (!mounted) return;
+
+                            setState(() {
+                              isLoading = false;
+                            });
+
+                            // ignore: use_build_context_synchronously
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Ride request submitted'),
+                              ),
+                            );
+
+                            // ignore: use_build_context_synchronously
+                            Navigator.pop(context);
+                          },
+                    child: isLoading
+                        ? const CircularProgressIndicator(color: Colors.white)
+                        : const Text(
+                            'Submit Request',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 15,
+                              fontWeight: FontWeight.w600,
+                            ),
                           ),
-                        );
-
-                        Navigator.pop(context);
-                      }
-                    },
-                    child: const Text(
-                      'Submit Request',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 15,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
                   ),
                 ),
               ],

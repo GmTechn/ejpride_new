@@ -41,47 +41,51 @@ class DefaultFirebaseOptions {
   }
 
   static const FirebaseOptions web = FirebaseOptions(
-    apiKey: 'AIzaSyAq3XcFG0gj6DGjrhcE2yzt480caRb6d_8',
-    appId: '1:356608064184:web:01817cd74ec770ea7c924d',
-    messagingSenderId: '356608064184',
-    projectId: 'ejpride-54173',
-    authDomain: 'ejpride-54173.firebaseapp.com',
-    storageBucket: 'ejpride-54173.firebasestorage.app',
+    apiKey: 'AIzaSyD6GkYKkplruOaK40O0jCksybxkGVL9ZTU',
+    appId: '1:802755879997:web:b19a3ae66cf4d3eca27654',
+    messagingSenderId: '802755879997',
+    projectId: 'ejpride-605e5',
+    authDomain: 'ejpride-605e5.firebaseapp.com',
+    databaseURL: 'https://ejpride-605e5-default-rtdb.firebaseio.com',
+    storageBucket: 'ejpride-605e5.firebasestorage.app',
   );
 
   static const FirebaseOptions android = FirebaseOptions(
-    apiKey: 'AIzaSyBzZw56-ewdHJXETtpW-BG-b7QGmZKd0wc',
-    appId: '1:356608064184:android:01e8531392f7cbe97c924d',
-    messagingSenderId: '356608064184',
-    projectId: 'ejpride-54173',
-    storageBucket: 'ejpride-54173.firebasestorage.app',
+    apiKey: 'AIzaSyA1FgU6nmJFutB4e7ldoxHFJcrbD8A3AeE',
+    appId: '1:802755879997:android:0fa05323e360824ea27654',
+    messagingSenderId: '802755879997',
+    projectId: 'ejpride-605e5',
+    databaseURL: 'https://ejpride-605e5-default-rtdb.firebaseio.com',
+    storageBucket: 'ejpride-605e5.firebasestorage.app',
   );
 
   static const FirebaseOptions ios = FirebaseOptions(
-    apiKey: 'AIzaSyAqyKueUbM_8VN_L9_WRIDUA3yy2snQ_wQ',
-    appId: '1:356608064184:ios:0138d7311a99720b7c924d',
-    messagingSenderId: '356608064184',
-    projectId: 'ejpride-54173',
-    storageBucket: 'ejpride-54173.firebasestorage.app',
+    apiKey: 'AIzaSyDeKQL_4I2p_VESfOV2wiivm0LC8oefbDw',
+    appId: '1:802755879997:ios:1ee08ce969453ebda27654',
+    messagingSenderId: '802755879997',
+    projectId: 'ejpride-605e5',
+    databaseURL: 'https://ejpride-605e5-default-rtdb.firebaseio.com',
+    storageBucket: 'ejpride-605e5.firebasestorage.app',
     iosBundleId: 'com.example.ejpRideVersion',
   );
 
   static const FirebaseOptions macos = FirebaseOptions(
-    apiKey: 'AIzaSyAqyKueUbM_8VN_L9_WRIDUA3yy2snQ_wQ',
-    appId: '1:356608064184:ios:0138d7311a99720b7c924d',
-    messagingSenderId: '356608064184',
-    projectId: 'ejpride-54173',
-    storageBucket: 'ejpride-54173.firebasestorage.app',
+    apiKey: 'AIzaSyDeKQL_4I2p_VESfOV2wiivm0LC8oefbDw',
+    appId: '1:802755879997:ios:1ee08ce969453ebda27654',
+    messagingSenderId: '802755879997',
+    projectId: 'ejpride-605e5',
+    databaseURL: 'https://ejpride-605e5-default-rtdb.firebaseio.com',
+    storageBucket: 'ejpride-605e5.firebasestorage.app',
     iosBundleId: 'com.example.ejpRideVersion',
   );
 
   static const FirebaseOptions windows = FirebaseOptions(
-    apiKey: 'AIzaSyDfTOnOQhcbrGEDp_p_2G6pWFwlYlxp-4Y',
-    appId: '1:356608064184:web:1fe4ba54d468fa4a7c924d',
-    messagingSenderId: '356608064184',
-    projectId: 'ejpride-54173',
-    authDomain: 'ejpride-54173.firebaseapp.com',
-    storageBucket: 'ejpride-54173.firebasestorage.app',
+    apiKey: 'AIzaSyD6GkYKkplruOaK40O0jCksybxkGVL9ZTU',
+    appId: '1:802755879997:web:4615b555b6b9b3f9a27654',
+    messagingSenderId: '802755879997',
+    projectId: 'ejpride-605e5',
+    authDomain: 'ejpride-605e5.firebaseapp.com',
+    databaseURL: 'https://ejpride-605e5-default-rtdb.firebaseio.com',
+    storageBucket: 'ejpride-605e5.firebasestorage.app',
   );
-
 }

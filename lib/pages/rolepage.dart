@@ -39,7 +39,7 @@ class RolePage extends StatelessWidget {
               const SizedBox(height: 30),
 
               _RoleTile(
-                icon: CupertinoIcons.person,
+                icon: CupertinoIcons.person_fill,
                 title: 'Passenger',
 
                 onTap: () {
@@ -56,7 +56,7 @@ class RolePage extends StatelessWidget {
               const SizedBox(height: 12),
 
               _RoleTile(
-                icon: CupertinoIcons.car,
+                icon: CupertinoIcons.car_detailed,
                 title: 'Driver',
 
                 onTap: () {

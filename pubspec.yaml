@@ -44,13 +44,10 @@ dependencies:
   image_picker: ^1.0.7
 
   #Location related stuff
-  google_maps_flutter: ^2.13.1
-  geolocator: ^14.0.2
   firebase_core: ^4.7.0
   firebase_auth: ^6.4.0
   cloud_firestore: ^6.3.0
   image_cropper: ^12.2.1
-  geocoding: ^4.0.0
   flutter_typeahead: ^6.0.0
   dio: ^5.9.2
 

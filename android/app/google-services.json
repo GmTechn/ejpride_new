@@ -1,32 +1,14 @@
 {
   "project_info": {
-    "project_number": "356608064184",
-    "project_id": "ejpride-54173",
-    "storage_bucket": "ejpride-54173.firebasestorage.app"
+    "project_number": "802755879997",
+    "firebase_url": "https://ejpride-605e5-default-rtdb.firebaseio.com",
+    "project_id": "ejpride-605e5",
+    "storage_bucket": "ejpride-605e5.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:356608064184:android:c827ca871d1e788b7c924d",
-        "android_client_info": {
-          "package_name": "com.example.ejp_ride"
-        }
-      },
-      "oauth_client": [],
-      "api_key": [
-        {
-          "current_key": "AIzaSyBzZw56-ewdHJXETtpW-BG-b7QGmZKd0wc"
-        }
-      ],
-      "services": {
-        "appinvite_service": {
-          "other_platform_oauth_client": []
-        }
-      }
-    },
-    {
-      "client_info": {
-        "mobilesdk_app_id": "1:356608064184:android:01e8531392f7cbe97c924d",
+        "mobilesdk_app_id": "1:802755879997:android:0fa05323e360824ea27654",
         "android_client_info": {
           "package_name": "com.example.ejp_ride_version"
         }
@@ -34,26 +16,7 @@
       "oauth_client": [],
       "api_key": [
         {
-          "current_key": "AIzaSyBzZw56-ewdHJXETtpW-BG-b7QGmZKd0wc"
-        }
-      ],
-      "services": {
-        "appinvite_service": {
-          "other_platform_oauth_client": []
-        }
-      }
-    },
-    {
-      "client_info": {
-        "mobilesdk_app_id": "1:356608064184:android:371229c208e593b27c924d",
-        "android_client_info": {
-          "package_name": "com.example.ejpride"
-        }
-      },
-      "oauth_client": [],
-      "api_key": [
-        {
-          "current_key": "AIzaSyBzZw56-ewdHJXETtpW-BG-b7QGmZKd0wc"
+          "current_key": "AIzaSyA1FgU6nmJFutB4e7ldoxHFJcrbD8A3AeE"
         }
       ],
       "services": {

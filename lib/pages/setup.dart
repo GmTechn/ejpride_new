@@ -169,6 +169,10 @@ class _ProfileSetUpPageState extends State<ProfileSetUpPage> {
 
     if (!mounted) return;
 
+    setState(() {
+      isLoading = false;
+    });
+
     Navigator.pushReplacement(
       context,
       MaterialPageRoute(
@@ -178,14 +182,10 @@ class _ProfileSetUpPageState extends State<ProfileSetUpPage> {
           email: user.email ?? '',
           zone: selectedZone!,
           phone: phoneController.text.trim(),
-          profileImage: _profileImage,
+          profileImage: null, // TEMPORAIRE pour éviter crash mémoire
         ),
       ),
     );
-
-    setState(() {
-      isLoading = false;
-    });
   }
 
   @override

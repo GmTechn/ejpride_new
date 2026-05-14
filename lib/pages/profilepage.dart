@@ -307,6 +307,8 @@ class _UserProfilePageState extends State<UserProfilePage> {
     if (user == null) return;
 
     await FirebaseFirestore.instance.collection('users').doc(user.uid).delete();
+
+    
     await user.delete();
 
     if (context.mounted) {

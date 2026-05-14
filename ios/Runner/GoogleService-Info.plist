@@ -3,17 +3,17 @@
 <plist version="1.0">
 <dict>
 	<key>API_KEY</key>
-	<string>AIzaSyAqyKueUbM_8VN_L9_WRIDUA3yy2snQ_wQ</string>
+	<string>AIzaSyDeKQL_4I2p_VESfOV2wiivm0LC8oefbDw</string>
 	<key>GCM_SENDER_ID</key>
-	<string>356608064184</string>
+	<string>802755879997</string>
 	<key>PLIST_VERSION</key>
 	<string>1</string>
 	<key>BUNDLE_ID</key>
 	<string>com.example.ejpRideVersion</string>
 	<key>PROJECT_ID</key>
-	<string>ejpride-54173</string>
+	<string>ejpride-605e5</string>
 	<key>STORAGE_BUCKET</key>
-	<string>ejpride-54173.firebasestorage.app</string>
+	<string>ejpride-605e5.firebasestorage.app</string>
 	<key>IS_ADS_ENABLED</key>
 	<false></false>
 	<key>IS_ANALYTICS_ENABLED</key>
@@ -25,6 +25,8 @@
 	<key>IS_SIGNIN_ENABLED</key>
 	<true></true>
 	<key>GOOGLE_APP_ID</key>
-	<string>1:356608064184:ios:0138d7311a99720b7c924d</string>
+	<string>1:802755879997:ios:1ee08ce969453ebda27654</string>
+	<key>DATABASE_URL</key>
+	<string>https://ejpride-605e5-default-rtdb.firebaseio.com</string>
 </dict>
 </plist>

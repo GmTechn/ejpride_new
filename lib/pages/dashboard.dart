@@ -1,15 +1,12 @@
+// ignore_for_file: deprecated_member_use
+
 import 'dart:io';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:dio/dio.dart';
 import 'package:ejp_ride_version/pages/profilepage.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_typeahead/flutter_typeahead.dart';
-import 'package:geocoding/geocoding.dart';
-import 'package:geolocator/geolocator.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 class DashboardPage extends StatefulWidget {
   final String role;
@@ -34,432 +31,264 @@ class DashboardPage extends StatefulWidget {
 }
 
 class _DashboardPageState extends State<DashboardPage> {
-  static const String googleApiKey = 'AIzaSyDeKQL_4I2p_VESfOV2wiivm0LC8oefbDw';
+  File? dashboardProfileImage;
+
+  final pickupController = TextEditingController();
+  final dropoffController = TextEditingController();
+  final favoriteLabelController = TextEditingController();
+
+  String pickupType = 'meeting_point';
+  String? selectedMeetingPoint;
+  String? selectedFavoriteAddress;
+
+  bool saveDestinationAsFavorite = false;
+
+  final List<String> meetingPoints = [
+    'Hull (Galeries)',
+    'Gatineau (Promenades)',
+    'Aylmer (Galeries)',
+    'Ottawa (Rideau)',
+    'Orléans (St-Laurent)',
+  ];
 
   bool get isDriver => widget.role == 'driver';
-
-  File? dashboardProfileImage;
-  GoogleMapController? mapController;
-
-  final DraggableScrollableController sheetController =
-      DraggableScrollableController();
-
-  final TextEditingController pickupAddressController = TextEditingController();
-
-  final TextEditingController dropoffAddressController =
-      TextEditingController();
-
-  String rideStatus = 'none';
-  String? activeRideRequestId;
-
-  String currentLocation = 'Getting location...';
-  LatLng currentLatLng = const LatLng(45.4215, -75.6972);
 
   @override
   void initState() {
     super.initState();
     dashboardProfileImage = widget.profileImage;
-    getCurrentLocation();
   }
 
   @override
   void dispose() {
-    pickupAddressController.dispose();
-    dropoffAddressController.dispose();
-    sheetController.dispose();
-    mapController?.dispose();
+    pickupController.dispose();
+    dropoffController.dispose();
+    favoriteLabelController.dispose();
     super.dispose();
-  }
-
-  Future<void> getCurrentLocation() async {
-    final serviceEnabled = await Geolocator.isLocationServiceEnabled();
-
-    if (!serviceEnabled) {
-      setState(() {
-        currentLocation = 'Location off';
-      });
-      return;
-    }
-
-    LocationPermission permission = await Geolocator.checkPermission();
-
-    if (permission == LocationPermission.denied) {
-      permission = await Geolocator.requestPermission();
-    }
-
-    if (permission == LocationPermission.denied ||
-        permission == LocationPermission.deniedForever) {
-      setState(() {
-        currentLocation = 'Location unavailable';
-      });
-      return;
-    }
-
-    final position = await Geolocator.getCurrentPosition();
-
-    final newLatLng = LatLng(position.latitude, position.longitude);
-
-    setState(() {
-      currentLatLng = newLatLng;
-    });
-
-    mapController?.animateCamera(
-      CameraUpdate.newCameraPosition(
-        CameraPosition(target: newLatLng, zoom: 16),
-      ),
-    );
-
-    try {
-      final placemarks = await placemarkFromCoordinates(
-        position.latitude,
-        position.longitude,
-      );
-
-      if (placemarks.isNotEmpty) {
-        final place = placemarks.first;
-
-        final fullAddress = '${place.street ?? ''}, ${place.locality ?? ''}'
-            .trim();
-
-        final city = place.locality ?? 'Current city';
-
-        setState(() {
-          currentLocation = city;
-          pickupAddressController.text = fullAddress;
-        });
-      }
-    } catch (_) {
-      setState(() {
-        currentLocation = 'Current location';
-      });
-    }
-  }
-
-  Future<List<String>> getAddressSuggestions(String input) async {
-    if (input.trim().length < 3) return [];
-
-    try {
-      final response = await Dio().get(
-        'https://maps.googleapis.com/maps/api/place/autocomplete/json',
-        queryParameters: {
-          'input': input.trim(),
-          'key': googleApiKey,
-          'components': 'country:ca',
-          'location': '${currentLatLng.latitude},${currentLatLng.longitude}',
-          'radius': 50000,
-        },
-      );
-
-      if (response.data['status'] != 'OK') return [];
-
-      final predictions = response.data['predictions'] as List;
-
-      return predictions
-          .map((prediction) => prediction['description'] as String)
-          .toList();
-    } catch (_) {
-      return [];
-    }
   }
 
   Future<void> submitRideRequest() async {
     final user = FirebaseAuth.instance.currentUser;
-
     if (user == null) return;
 
-    final pickup = pickupAddressController.text.trim();
-    final dropoff = dropoffAddressController.text.trim();
+    final pickupAddress = pickupType == 'meeting_point'
+        ? selectedMeetingPoint
+        : pickupController.text.trim();
 
-    if (pickup.isEmpty || dropoff.isEmpty) {
+    if (pickupAddress == null ||
+        pickupAddress.isEmpty ||
+        dropoffController.text.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Pickup and drop-off are required')),
+        const SnackBar(
+          content: Text('Le point de départ et la destination sont requis.'),
+        ),
       );
       return;
     }
 
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) {
-        return AlertDialog(
-          backgroundColor: const Color.fromARGB(255, 38, 38, 60),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(18),
-          ),
-          content: const Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              CircularProgressIndicator(color: Colors.orange),
-              SizedBox(height: 18),
-              Text(
-                'We are looking for a ride for you...',
-                textAlign: TextAlign.center,
-                style: TextStyle(color: Colors.white, fontSize: 14),
-              ),
-            ],
-          ),
-        );
-      },
-    );
-
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) {
-        return AlertDialog(
-          backgroundColor: const Color.fromARGB(255, 38, 38, 60),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(18),
-          ),
-          content: const Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              CircularProgressIndicator(color: Colors.orange),
-              SizedBox(height: 18),
-              Text(
-                'We are looking for a ride for you...',
-                textAlign: TextAlign.center,
-                style: TextStyle(color: Colors.white, fontSize: 14),
-              ),
-            ],
-          ),
-        );
-      },
-    );
-
-    final doc = await FirebaseFirestore.instance
-        .collection('ride_requests')
-        .add({
-          'userId': user.uid,
-          'name': widget.name,
-          'email': widget.email,
-          'phone': widget.phone,
-          'zone': widget.zone,
-          'pickupAddress': pickup,
-          'dropoffAddress': dropoff,
-          'latitude': currentLatLng.latitude,
-          'longitude': currentLatLng.longitude,
-          'status': 'waiting',
-          'createdAt': FieldValue.serverTimestamp(),
-        });
-    if (mounted) Navigator.pop(context);
-
-    setState(() {
-      rideStatus = 'waiting';
-      activeRideRequestId = doc.id;
+    await FirebaseFirestore.instance.collection('ride_requests').add({
+      'userId': user.uid,
+      'name': widget.name,
+      'email': widget.email,
+      'phone': widget.phone,
+      'zone': widget.zone,
+      'pickupType': pickupType,
+      'meetingPoint': pickupType == 'meeting_point'
+          ? selectedMeetingPoint
+          : null,
+      'pickupAddress': pickupAddress,
+      'dropoffAddress': dropoffController.text.trim(),
+      'status': 'waiting',
+      'declinedBy': [],
+      'createdAt': FieldValue.serverTimestamp(),
     });
 
-    await sheetController.animateTo(
-      0.25,
-      duration: const Duration(milliseconds: 350),
-      curve: Curves.easeOut,
+    if (saveDestinationAsFavorite && dropoffController.text.trim().isNotEmpty) {
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .collection('favorite_addresses')
+          .add({
+            'label': favoriteLabelController.text.trim().isEmpty
+                ? 'Favori'
+                : favoriteLabelController.text.trim(),
+            'address': dropoffController.text.trim(),
+            'createdAt': FieldValue.serverTimestamp(),
+          });
+    }
+
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Demande envoyée avec succès.')),
     );
-  }
 
-  Future<void> cancelRideRequest() async {
-    if (activeRideRequestId == null) return;
-
-    await FirebaseFirestore.instance
-        .collection('ride_requests')
-        .doc(activeRideRequestId)
-        .delete();
+    pickupController.clear();
+    dropoffController.clear();
+    favoriteLabelController.clear();
 
     setState(() {
-      rideStatus = 'none';
-      activeRideRequestId = null;
-      dropoffAddressController.clear();
+      selectedMeetingPoint = null;
+      selectedFavoriteAddress = null;
+      saveDestinationAsFavorite = false;
+      pickupType = 'meeting_point';
     });
-
-    await getCurrentLocation();
-
-    await sheetController.animateTo(
-      0.55,
-      duration: const Duration(milliseconds: 300),
-      curve: Curves.easeOut,
-    );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      resizeToAvoidBottomInset: true,
       backgroundColor: const Color.fromARGB(255, 28, 28, 47),
-      body: Stack(
+      body: SafeArea(
+        child: Column(
+          children: [
+            _TopBar(
+              name: widget.name,
+              zone: widget.zone,
+              profileImage: dashboardProfileImage,
+              onProfileTap: () async {
+                final updatedImage = await Navigator.push<File?>(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => UserProfilePage(
+                      name: widget.name,
+                      email: widget.email,
+                      zone: widget.zone,
+                      role: widget.role,
+                      phone: widget.phone,
+                      profileImage: dashboardProfileImage,
+                    ),
+                  ),
+                );
+
+                if (updatedImage != null) {
+                  setState(() => dashboardProfileImage = updatedImage);
+                }
+              },
+            ),
+            Expanded(
+              child: SingleChildScrollView(
+                keyboardDismissBehavior:
+                    ScrollViewKeyboardDismissBehavior.onDrag,
+                padding: EdgeInsets.fromLTRB(
+                  20,
+                  18,
+                  20,
+                  MediaQuery.of(context).viewInsets.bottom + 30,
+                ),
+                child: isDriver
+                    ? _DriverSection(name: widget.name)
+                    : _PassengerSection(
+                        name: widget.name,
+                        pickupController: pickupController,
+                        dropoffController: dropoffController,
+                        pickupType: pickupType,
+                        selectedMeetingPoint: selectedMeetingPoint,
+                        meetingPoints: meetingPoints,
+                        onPickupTypeChanged: (value) {
+                          setState(() {
+                            pickupType = value;
+                          });
+                        },
+                        onMeetingPointChanged: (value) {
+                          setState(() {
+                            selectedMeetingPoint = value;
+                          });
+                        },
+                        selectedFavoriteAddress: selectedFavoriteAddress,
+                        favoriteLabelController: favoriteLabelController,
+                        saveDestinationAsFavorite: saveDestinationAsFavorite,
+                        onFavoriteSelected: (value) {
+                          setState(() {
+                            selectedFavoriteAddress = value;
+                            if (value != null) {
+                              dropoffController.text = value;
+                            }
+                          });
+                        },
+                        onSaveFavoriteChanged: (value) {
+                          setState(() {
+                            saveDestinationAsFavorite = value ?? false;
+                          });
+                        },
+                        onSubmit: submitRideRequest,
+                      ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _TopBar extends StatelessWidget {
+  final String name;
+  final String zone;
+  final File? profileImage;
+  final VoidCallback onProfileTap;
+
+  const _TopBar({
+    required this.name,
+    required this.zone,
+    required this.profileImage,
+    required this.onProfileTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(18, 12, 18, 8),
+      child: Row(
         children: [
-          Positioned.fill(
-            child: GoogleMap(
-              initialCameraPosition: CameraPosition(
-                target: currentLatLng,
-                zoom: 16,
-              ),
-              onMapCreated: (controller) {
-                mapController = controller;
-                getCurrentLocation();
-              },
-              myLocationEnabled: true,
-              myLocationButtonEnabled: true,
-              zoomControlsEnabled: false,
-              compassEnabled: false,
-              mapToolbarEnabled: false,
-              markers: {
-                Marker(
-                  markerId: const MarkerId('current_location'),
-                  position: currentLatLng,
-                ),
-              },
+          GestureDetector(
+            onTap: onProfileTap,
+            child: CircleAvatar(
+              radius: 27,
+              backgroundColor: Colors.white,
+              backgroundImage: profileImage != null
+                  ? FileImage(profileImage!)
+                  : null,
+              child: profileImage == null
+                  ? const Icon(Icons.person, color: Colors.green, size: 28)
+                  : null,
             ),
           ),
-
-          IgnorePointer(
-            // ignore: deprecated_member_use
-            child: Container(color: Colors.black.withOpacity(0.10)),
-          ),
-
-          SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
-              child: Row(
-                children: [
-                  GestureDetector(
-                    onTap: () async {
-                      final updatedImage = await Navigator.push<File?>(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => UserProfilePage(
-                            name: widget.name,
-                            email: widget.email,
-                            zone: widget.zone,
-                            role: widget.role,
-                            phone: widget.phone,
-                            profileImage: dashboardProfileImage,
-                          ),
-                        ),
-                      );
-
-                      if (updatedImage != null) {
-                        setState(() {
-                          dashboardProfileImage = updatedImage;
-                        });
-                      }
-                    },
-                    child: CircleAvatar(
-                      radius: 28,
-                      backgroundColor: Colors.white,
-                      backgroundImage: dashboardProfileImage != null
-                          ? FileImage(dashboardProfileImage!)
-                          : null,
-                      child: dashboardProfileImage == null
-                          ? const Icon(
-                              Icons.person,
-                              color: Colors.green,
-                              size: 28,
-                            )
-                          : null,
-                    ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Bonjour, $name 👋',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 17,
+                    fontWeight: FontWeight.bold,
                   ),
-
-                  const SizedBox(width: 12),
-
-                  Expanded(
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 14,
-                        vertical: 10,
-                      ),
-                      decoration: BoxDecoration(
-                        color: const Color.fromARGB(180, 240, 240, 245),
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          const Icon(
-                            CupertinoIcons.location_fill,
-                            color: Colors.green,
-                            size: 16,
-                          ),
-                          const SizedBox(width: 8),
-                          Flexible(
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                const Text(
-                                  'Your location',
-                                  style: TextStyle(
-                                    color: Colors.black54,
-                                    fontSize: 11,
-                                  ),
-                                ),
-                                Text(
-                                  currentLocation,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  textAlign: TextAlign.center,
-                                  style: const TextStyle(
-                                    color: Colors.black87,
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-
-                  const SizedBox(width: 12),
-
-                  Container(
-                    padding: const EdgeInsets.all(11),
-                    decoration: BoxDecoration(
-                      // ignore: deprecated_member_use
-                      color: Colors.white.withOpacity(0.85),
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(
-                      CupertinoIcons.bell,
-                      size: 20,
-                      color: Colors.black87,
-                    ),
-                  ),
-                ],
-              ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  zone,
+                  style: const TextStyle(color: Colors.white60, fontSize: 13),
+                ),
+              ],
             ),
           ),
-
-          DraggableScrollableSheet(
-            controller: sheetController,
-            initialChildSize: 0.55,
-            minChildSize: 0.25,
-            maxChildSize: 0.90,
-            snap: true,
-            snapSizes: const [0.25, 0.55, 0.90],
-            builder: (context, scrollController) {
-              return Container(
-                padding: const EdgeInsets.fromLTRB(22, 14, 22, 24),
-                decoration: const BoxDecoration(
-                  color: Color.fromARGB(255, 28, 28, 47),
-                  borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-                ),
-                child: SingleChildScrollView(
-                  controller: scrollController,
-                  keyboardDismissBehavior:
-                      ScrollViewKeyboardDismissBehavior.onDrag,
-                  child: isDriver
-                      ? _DriverContent(name: widget.name)
-                      : _PassengerContent(
-                          name: widget.name,
-                          pickupController: pickupAddressController,
-                          dropoffController: dropoffAddressController,
-                          onRequestRide: submitRideRequest,
-                          onCancelRide: cancelRideRequest,
-                          rideStatus: rideStatus,
-                          suggestionCallback: getAddressSuggestions,
-                        ),
-                ),
-              );
-            },
+          Container(
+            padding: const EdgeInsets.all(11),
+            decoration: const BoxDecoration(
+              color: Color.fromARGB(255, 38, 38, 60),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(
+              CupertinoIcons.bell,
+              color: Colors.white,
+              size: 20,
+            ),
           ),
         ],
       ),
@@ -467,256 +296,764 @@ class _DashboardPageState extends State<DashboardPage> {
   }
 }
 
-class _PassengerContent extends StatefulWidget {
+class _PassengerSection extends StatelessWidget {
   final String name;
-  final VoidCallback onRequestRide;
-  final VoidCallback onCancelRide;
   final TextEditingController pickupController;
   final TextEditingController dropoffController;
-  final String rideStatus;
-  final Future<List<String>> Function(String) suggestionCallback;
 
-  const _PassengerContent({
+  final String pickupType;
+  final String? selectedMeetingPoint;
+  final List<String> meetingPoints;
+
+  final void Function(String) onPickupTypeChanged;
+  final void Function(String?) onMeetingPointChanged;
+
+  final String? selectedFavoriteAddress;
+  final TextEditingController favoriteLabelController;
+  final bool saveDestinationAsFavorite;
+  final void Function(String?) onFavoriteSelected;
+  final void Function(bool?) onSaveFavoriteChanged;
+
+  final VoidCallback onSubmit;
+
+  const _PassengerSection({
     required this.name,
-    required this.onRequestRide,
-    required this.onCancelRide,
     required this.pickupController,
     required this.dropoffController,
-    required this.rideStatus,
-    required this.suggestionCallback,
+    required this.pickupType,
+    required this.selectedMeetingPoint,
+    required this.meetingPoints,
+    required this.onPickupTypeChanged,
+    required this.onMeetingPointChanged,
+    required this.selectedFavoriteAddress,
+    required this.favoriteLabelController,
+    required this.saveDestinationAsFavorite,
+    required this.onFavoriteSelected,
+    required this.onSaveFavoriteChanged,
+    required this.onSubmit,
   });
 
-  @override
-  State<_PassengerContent> createState() => _PassengerContentState();
-}
-
-class _PassengerContentState extends State<_PassengerContent> {
-  bool get hasActiveRequest => widget.rideStatus == 'waiting';
-
-  Color get statusColor {
-    switch (widget.rideStatus) {
+  double progressValue(String status) {
+    switch (status) {
       case 'waiting':
-        return Colors.orange;
-      case 'accepted':
-        return Colors.green;
+        return 0.20;
+      case 'assigned':
+        return 0.40;
+      case 'on_the_way':
+        return 0.60;
+      case 'driver_arrived':
+        return 0.80;
+      case 'picked_up':
+        return 0.90;
+      case 'completed':
+        return 1.0;
       default:
-        return Colors.red;
+        return 0.0;
     }
   }
 
-  String get statusText {
-    switch (widget.rideStatus) {
+  String statusTitle(String status) {
+    switch (status) {
       case 'waiting':
-        return 'We are looking for a driver for you...';
-      case 'accepted':
-        return 'Ride confirmed';
+        return 'Recherche d’un chauffeur';
+      case 'assigned':
+        return 'Trajet assigné 🎉';
+      case 'on_the_way':
+        return 'Votre chauffeur est en route';
+      case 'driver_arrived':
+        return 'Votre chauffeur est arrivé 🚗';
+      case 'picked_up':
+        return 'Vous êtes en route';
+      case 'completed':
+        return 'Merci d’avoir choisi EJP Ride.';
+      case 'no_driver_found':
+        return 'Aucun chauffeur disponible';
       default:
-        return 'No active ride request';
+        return 'Demander un trajet';
     }
   }
 
-  Widget buildAddressField({
-    required String label,
-    required TextEditingController controller,
-  }) {
-    return TypeAheadField<String>(
-      hideOnSelect: true,
-      hideOnEmpty: true,
-      hideOnUnfocus: true,
-      suggestionsCallback: widget.suggestionCallback,
-      itemBuilder: (context, suggestion) {
-        return ListTile(
-          title: Text(suggestion, style: const TextStyle(fontSize: 13)),
-        );
-      },
-      onSelected: (suggestion) {
-        controller.text = suggestion;
-
-        FocusManager.instance.primaryFocus?.unfocus();
-
-        Future.delayed(const Duration(milliseconds: 80), () {
-          if (mounted) {
-            setState(() {});
-          }
-        });
-      },
-      builder: (context, textController, focusNode) {
-        if (textController.text != controller.text) {
-          textController.text = controller.text;
-          textController.selection = TextSelection.fromPosition(
-            TextPosition(offset: textController.text.length),
-          );
-        }
-
-        return TextField(
-          controller: textController,
-          focusNode: focusNode,
-          enabled: !hasActiveRequest,
-          cursorColor: Colors.white,
-          style: const TextStyle(color: Colors.white, fontSize: 13),
-          decoration: InputDecoration(
-            labelText: label,
-            labelStyle: const TextStyle(color: Colors.white70, fontSize: 13),
-            hintText: label == 'Pickup'
-                ? 'Enter your pickup address'
-                : 'Where are you going?',
-            hintStyle: const TextStyle(color: Colors.white38, fontSize: 13),
-            filled: true,
-            fillColor: const Color.fromARGB(255, 38, 38, 60),
-            suffixIcon: controller.text.isNotEmpty && !hasActiveRequest
-                ? IconButton(
-                    icon: const Icon(
-                      CupertinoIcons.xmark_circle_fill,
-                      color: Colors.white54,
-                    ),
-                    onPressed: () {
-                      textController.clear();
-                      controller.clear();
-                      FocusScope.of(context).unfocus();
-                      setState(() {});
-                    },
-                  )
-                : null,
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(14),
-              borderSide: const BorderSide(color: Colors.white54),
-            ),
-            disabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(14),
-              borderSide: const BorderSide(color: Colors.white24),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(14),
-              borderSide: const BorderSide(color: Colors.green, width: 2),
-            ),
-          ),
-          onChanged: (value) {
-            controller.text = value;
-            setState(() {});
-          },
-        );
-      },
-    );
+  String statusSubtitle(String status) {
+    switch (status) {
+      case 'waiting':
+        return 'Recherche d’un chauffeur disponible...';
+      case 'assigned':
+        return 'Votre trajet pour dimanche a été confirmé.';
+      case 'on_the_way':
+        return 'Votre chauffeur est en route vers votre point de ramassage.';
+      case 'driver_arrived':
+        return 'Veuillez rejoindre votre chauffeur au point de ramassage.';
+      case 'picked_up':
+        return 'Vous êtes actuellement en route vers votre destination.';
+      case 'no_driver_found':
+        return 'Nous n’avons pas trouvé de chauffeur pour le moment.';
+      case 'completed':
+        return 'Merci d’avoir utilisé EJP Ride.';
+      default:
+        return 'Entrez votre point de départ et votre destination.';
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Container(
-          width: 42,
-          height: 4,
-          decoration: BoxDecoration(
-            color: Colors.white38,
-            borderRadius: BorderRadius.circular(20),
-          ),
-        ),
+    final user = FirebaseAuth.instance.currentUser;
 
-        const SizedBox(height: 18),
+    if (user == null) {
+      return const Text(
+        'Veuillez vous reconnecter.',
+        style: TextStyle(color: Colors.white),
+      );
+    }
 
-        Align(
-          alignment: Alignment.centerLeft,
-          child: Text(
-            'Hello, ${widget.name} 👋',
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 17,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-        ),
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('ride_requests')
+          .where('userId', isEqualTo: user.uid)
+          .where(
+            'status',
+            whereIn: [
+              'waiting',
+              'assigned',
+              'on_the_way',
+              'driver_arrived',
+              'picked_up',
+              'no_driver_found',
+            ],
+          )
+          .snapshots(),
+      builder: (context, snapshot) {
+        final requests = snapshot.data?.docs ?? [];
 
-        const SizedBox(height: 6),
+        if (requests.isNotEmpty) {
+          final data = requests.first.data() as Map<String, dynamic>;
+          final status = data['status'] ?? 'waiting';
 
-        const Align(
-          alignment: Alignment.centerLeft,
-          child: Text(
-            'Need a ride this Sunday?',
-            style: TextStyle(color: Colors.white60, fontSize: 13),
-          ),
-        ),
-
-        const SizedBox(height: 18),
-
-        buildAddressField(label: 'Pickup', controller: widget.pickupController),
-
-        const SizedBox(height: 12),
-
-        buildAddressField(
-          label: 'Drop-off',
-          controller: widget.dropoffController,
-        ),
-
-        const SizedBox(height: 16),
-
-        SizedBox(
-          width: double.infinity,
-          height: 50,
-          child: ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: hasActiveRequest ? Colors.red : Colors.green,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(14),
-              ),
-            ),
-            onPressed: hasActiveRequest
-                ? widget.onCancelRide
-                : widget.onRequestRide,
-            child: Text(
-              hasActiveRequest ? 'Cancel Ride Request' : 'Confirm Ride Request',
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
-        ),
-
-        const SizedBox(height: 14),
-
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            color: const Color.fromARGB(255, 38, 38, 60),
-            borderRadius: BorderRadius.circular(14),
-          ),
-          child: Row(
-            children: [
-              widget.rideStatus == 'waiting'
-                  ? const SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: Colors.orange,
+          return _Panel(
+            title: statusTitle(status),
+            subtitle: statusSubtitle(status),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                LinearProgressIndicator(
+                  value: progressValue(status),
+                  color: Colors.green,
+                  backgroundColor: Colors.white24,
+                  minHeight: 8,
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                const SizedBox(height: 18),
+                Text(
+                  'Point de départ : ${data['pickupAddress'] ?? ''}',
+                  style: const TextStyle(color: Colors.white70),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Destination : ${data['dropoffAddress'] ?? ''}',
+                  style: const TextStyle(color: Colors.white70),
+                ),
+                const SizedBox(height: 18),
+                if (status == 'no_driver_found')
+                  SizedBox(
+                    width: double.infinity,
+                    height: 52,
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.green,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
                       ),
-                    )
-                  : Icon(CupertinoIcons.clock, color: statusColor, size: 19),
+                      onPressed: () async {
+                        await FirebaseFirestore.instance
+                            .collection('ride_requests')
+                            .doc(requests.first.id)
+                            .update({
+                              'status': 'closed',
+                              'closedAt': FieldValue.serverTimestamp(),
+                            });
+                      },
+                      child: const Text(
+                        'Réessayer',
+                        style: TextStyle(color: Colors.white, fontSize: 15),
+                      ),
+                    ),
+                  ),
+                if (status == 'driver_arrived')
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: Colors.green.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: Colors.green),
+                    ),
+                    child: const Text(
+                      'Votre chauffeur est arrivé. Veuillez vous rendre au point de ramassage.',
+                      style: TextStyle(color: Colors.white),
+                    ),
+                  ),
+              ],
+            ),
+          );
+        }
 
-              const SizedBox(width: 10),
+        return _Panel(
+          title: 'Planifier mon trajet',
+          subtitle:
+              'Choisissez votre point de ramassage et votre destination pour dimanche.',
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _SectionLabel('Type de ramassage'),
+              const SizedBox(height: 10),
 
-              Expanded(
-                child: Text(
-                  statusText,
-                  style: const TextStyle(color: Colors.white70, fontSize: 13),
+              Container(
+                padding: const EdgeInsets.all(4),
+                decoration: BoxDecoration(
+                  color: const Color.fromARGB(255, 28, 28, 47),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: Colors.white24),
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: GestureDetector(
+                        onTap: () => onPickupTypeChanged('meeting_point'),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(vertical: 10),
+                          decoration: BoxDecoration(
+                            color: pickupType == 'meeting_point'
+                                ? Colors.green
+                                : Colors.transparent,
+                            borderRadius: BorderRadius.circular(11),
+                          ),
+                          child: Text(
+                            'Point rencontre',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              color: pickupType == 'meeting_point'
+                                  ? Colors.white
+                                  : Colors.white60,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+
+                    Expanded(
+                      child: GestureDetector(
+                        onTap: () => onPickupTypeChanged('home_address'),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(vertical: 10),
+                          decoration: BoxDecoration(
+                            color: pickupType == 'home_address'
+                                ? Colors.green
+                                : Colors.transparent,
+                            borderRadius: BorderRadius.circular(11),
+                          ),
+                          child: Text(
+                            'Chez moi',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              color: pickupType == 'home_address'
+                                  ? Colors.white
+                                  : Colors.white60,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              const SizedBox(height: 14),
+
+              if (pickupType == 'meeting_point')
+                _MeetingPointDropdown(
+                  selectedMeetingPoint: selectedMeetingPoint,
+                  meetingPoints: meetingPoints,
+                  onChanged: onMeetingPointChanged,
+                ),
+
+              if (pickupType == 'home_address')
+                _DashboardField(
+                  controller: pickupController,
+                  label: 'Adresse de ramassage',
+                  icon: Icons.location_on_outlined,
+                ),
+
+              const SizedBox(height: 14),
+
+              _DashboardField(
+                controller: dropoffController,
+                label: 'Destination',
+                icon: CupertinoIcons.flag_fill,
+              ),
+
+              const SizedBox(height: 8),
+
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton.icon(
+                  onPressed: () {
+                    showDialog(
+                      context: context,
+                      builder: (context) {
+                        return AlertDialog(
+                          backgroundColor: const Color.fromARGB(
+                            255,
+                            38,
+                            38,
+                            60,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(18),
+                          ),
+                          title: const Text(
+                            'Ajouter aux favoris',
+                            style: TextStyle(color: Colors.white),
+                          ),
+                          content: TextField(
+                            controller: favoriteLabelController,
+                            style: const TextStyle(color: Colors.white),
+                            decoration: InputDecoration(
+                              hintText: 'Nom du favori',
+                              hintStyle: const TextStyle(color: Colors.white38),
+                              filled: true,
+                              fillColor: const Color.fromARGB(255, 28, 28, 47),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(14),
+                              ),
+                            ),
+                          ),
+                          actions: [
+                            TextButton(
+                              onPressed: () => Navigator.pop(context),
+                              child: const Text('Annuler'),
+                            ),
+                            TextButton(
+                              onPressed: () async {
+                                final user = FirebaseAuth.instance.currentUser;
+
+                                if (user == null ||
+                                    dropoffController.text.trim().isEmpty) {
+                                  Navigator.pop(context);
+                                  return;
+                                }
+
+                                await FirebaseFirestore.instance
+                                    .collection('users')
+                                    .doc(user.uid)
+                                    .collection('favorite_addresses')
+                                    .add({
+                                      'label':
+                                          favoriteLabelController.text
+                                              .trim()
+                                              .isEmpty
+                                          ? 'Favori'
+                                          : favoriteLabelController.text.trim(),
+                                      'address': dropoffController.text.trim(),
+                                      'createdAt': FieldValue.serverTimestamp(),
+                                    });
+
+                                favoriteLabelController.clear();
+
+                                if (context.mounted) Navigator.pop(context);
+                              },
+                              child: const Text('Enregistrer'),
+                            ),
+                          ],
+                        );
+                      },
+                    );
+                  },
+                  icon: const Icon(
+                    CupertinoIcons.star,
+                    color: Colors.green,
+                    size: 15,
+                  ),
+                  label: const Text(
+                    'Ajouter aux favoris',
+                    style: TextStyle(color: Colors.green, fontSize: 12),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 10),
+
+              _FavoriteAddressButtons(
+                dropoffController: dropoffController,
+                onFavoriteSelected: onFavoriteSelected,
+              ),
+
+              const SizedBox(height: 24),
+
+              SizedBox(
+                width: double.infinity,
+                height: 54,
+                child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.green,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                  ),
+                  onPressed: onSubmit,
+                  child: const Text(
+                    'Confirmer la demande',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
                 ),
               ),
             ],
           ),
-        ),
-
-        const SizedBox(height: 40),
-      ],
+        );
+      },
     );
   }
 }
 
-class _DriverContent extends StatelessWidget {
+class _MeetingPointDropdown extends StatelessWidget {
+  final String? selectedMeetingPoint;
+  final List<String> meetingPoints;
+  final void Function(String?) onChanged;
+
+  const _MeetingPointDropdown({
+    required this.selectedMeetingPoint,
+    required this.meetingPoints,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return DropdownButtonFormField<String>(
+      value: selectedMeetingPoint,
+      dropdownColor: const Color.fromARGB(255, 28, 28, 47),
+      decoration: InputDecoration(
+        labelText: 'Point de rencontre',
+        labelStyle: const TextStyle(color: Colors.white70, fontSize: 12),
+        prefixIcon: const Icon(Icons.place, color: Colors.green),
+        filled: true,
+        fillColor: const Color.fromARGB(255, 28, 28, 47),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: const BorderSide(color: Colors.white24),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: const BorderSide(color: Colors.green, width: 2),
+        ),
+      ),
+      style: const TextStyle(color: Colors.white, fontSize: 12),
+      items: meetingPoints.map((point) {
+        return DropdownMenuItem(
+          value: point,
+          child: Text(point, style: const TextStyle(fontSize: 12)),
+        );
+      }).toList(),
+      onChanged: onChanged,
+    );
+  }
+}
+
+class _FavoriteAddressButtons extends StatelessWidget {
+  final TextEditingController dropoffController;
+  final void Function(String?) onFavoriteSelected;
+
+  const _FavoriteAddressButtons({
+    required this.dropoffController,
+    required this.onFavoriteSelected,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('users')
+          .doc(FirebaseAuth.instance.currentUser!.uid)
+          .collection('favorite_addresses')
+          .snapshots(),
+      builder: (context, snapshot) {
+        final favorites = snapshot.data?.docs ?? [];
+
+        if (favorites.isEmpty) {
+          return const SizedBox.shrink();
+        }
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _SectionLabel('Destination rapide'),
+            const SizedBox(height: 10),
+            Column(
+              children: favorites.map((doc) {
+                final data = doc.data() as Map<String, dynamic>;
+                final label = data['label'] ?? 'Favori';
+                final address = data['address'] ?? '';
+
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: GestureDetector(
+                    onTap: () {
+                      dropoffController.text = address;
+                      onFavoriteSelected(address);
+                    },
+                    child: Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 12,
+                      ),
+
+                      child: Row(
+                        children: [
+                          Icon(
+                            CupertinoIcons.star_fill,
+                            color: Colors.green,
+                            size: 14,
+                          ),
+                          SizedBox(width: 5),
+                          Text(
+                            label,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                );
+              }).toList(),
+            ),
+            const SizedBox(height: 18),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _SectionLabel extends StatelessWidget {
+  final String text;
+
+  const _SectionLabel(this.text);
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      text,
+      style: const TextStyle(
+        color: Colors.white70,
+        fontSize: 13,
+        fontWeight: FontWeight.w700,
+      ),
+    );
+  }
+}
+
+class _DriverSection extends StatelessWidget {
   final String name;
 
-  const _DriverContent({required this.name});
+  const _DriverSection({required this.name});
+
+  String _statusLabel(String status) {
+    switch (status) {
+      case 'assigned':
+        return 'Assigné';
+      case 'on_the_way':
+        return 'En route';
+      case 'driver_arrived':
+        return 'Chauffeur arrivé';
+      case 'picked_up':
+        return 'Passager récupéré';
+      case 'completed':
+        return 'Terminé';
+      default:
+        return 'Assigné';
+    }
+  }
+
+  Future<void> updateRideStatus(String rideId, String status) async {
+    final updateData = <String, dynamic>{
+      'status': status,
+      'updatedAt': FieldValue.serverTimestamp(),
+    };
+
+    if (status == 'driver_arrived') {
+      updateData['driverArrivedAt'] = FieldValue.serverTimestamp();
+    }
+
+    if (status == 'picked_up') {
+      updateData['rideStartedAt'] = FieldValue.serverTimestamp();
+    }
+
+    if (status == 'completed') {
+      updateData['rideCompletedAt'] = FieldValue.serverTimestamp();
+    }
+
+    await FirebaseFirestore.instance
+        .collection('ride_requests')
+        .doc(rideId)
+        .update(updateData);
+  }
+
+  Future<void> acceptRide(String rideId) async {
+    await FirebaseFirestore.instance
+        .collection('ride_requests')
+        .doc(rideId)
+        .update({
+          'status': 'assigned',
+          'driverId': FirebaseAuth.instance.currentUser?.uid,
+          'acceptedAt': FieldValue.serverTimestamp(),
+        });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final driver = FirebaseAuth.instance.currentUser;
+
+    if (driver == null) {
+      return const Text(
+        'Veuillez vous reconnecter.',
+        style: TextStyle(color: Colors.white),
+      );
+    }
+
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('ride_requests')
+          .where('driverId', isEqualTo: driver.uid)
+          .where(
+            'status',
+            whereIn: ['assigned', 'on_the_way', 'driver_arrived', 'picked_up'],
+          )
+          .snapshots(),
+      builder: (context, activeSnapshot) {
+        final activeRides = activeSnapshot.data?.docs ?? [];
+
+        return Column(
+          children: [
+            if (activeRides.isNotEmpty)
+              _Panel(
+                title: 'Mes passagers assignés',
+                subtitle: 'Voici les trajets que vous avez acceptés.',
+                child: Column(
+                  children: activeRides.map((doc) {
+                    final data = doc.data() as Map<String, dynamic>;
+                    final status = data['status'] ?? 'assigned';
+
+                    String buttonText = 'Je suis en route';
+                    String nextStatus = 'on_the_way';
+
+                    if (status == 'on_the_way') {
+                      buttonText = 'Je suis arrivé';
+                      nextStatus = 'driver_arrived';
+                    }
+
+                    if (status == 'driver_arrived') {
+                      buttonText = 'Passager récupéré';
+                      nextStatus = 'picked_up';
+                    }
+
+                    if (status == 'picked_up') {
+                      buttonText = 'Terminer le trajet';
+                      nextStatus = 'completed';
+                    }
+
+                    return Container(
+                      width: double.infinity,
+                      margin: const EdgeInsets.only(bottom: 12),
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: const Color.fromARGB(255, 28, 28, 47),
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            data['name'] ?? 'Passager',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 15,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            'Départ : ${data['pickupAddress'] ?? ''}',
+                            style: const TextStyle(color: Colors.white70),
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            'Destination : ${data['dropoffAddress'] ?? ''}',
+                            style: const TextStyle(color: Colors.white70),
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            'Statut : ${_statusLabel(status)}',
+                            style: const TextStyle(color: Colors.white60),
+                          ),
+                          const SizedBox(height: 14),
+                          SizedBox(
+                            width: double.infinity,
+                            height: 46,
+                            child: ElevatedButton(
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.green,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(14),
+                                ),
+                              ),
+                              onPressed: () =>
+                                  updateRideStatus(doc.id, nextStatus),
+                              child: Text(
+                                buttonText,
+                                style: const TextStyle(color: Colors.white),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  }).toList(),
+                ),
+              ),
+            if (activeRides.isNotEmpty) const SizedBox(height: 20),
+            _Panel(
+              title: 'Demandes disponibles',
+              subtitle: 'Vous pouvez accepter plusieurs trajets pour dimanche.',
+              child: _AvailableRequestsList(
+                driverId: driver.uid,
+                acceptRide: acceptRide,
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _AvailableRequestsList extends StatelessWidget {
+  final String driverId;
+  final Future<void> Function(String rideId) acceptRide;
+
+  const _AvailableRequestsList({
+    required this.driverId,
+    required this.acceptRide,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -724,97 +1061,214 @@ class _DriverContent extends StatelessWidget {
       stream: FirebaseFirestore.instance
           .collection('ride_requests')
           .where('status', isEqualTo: 'waiting')
-          .orderBy('createdAt', descending: true)
           .snapshots(),
       builder: (context, snapshot) {
-        final requests = snapshot.data?.docs ?? [];
+        final allRequests = snapshot.data?.docs ?? [];
+
+        final requests = allRequests.where((doc) {
+          final data = doc.data() as Map<String, dynamic>;
+          final declinedBy = List<String>.from(data['declinedBy'] ?? []);
+          return !declinedBy.contains(driverId);
+        }).toList();
+
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(
+            child: CircularProgressIndicator(color: Colors.green),
+          );
+        }
+
+        if (requests.isEmpty) {
+          return const Text(
+            'Aucune demande pour le moment.',
+            style: TextStyle(color: Colors.white60),
+          );
+        }
 
         return Column(
-          children: [
-            Container(
-              width: 42,
-              height: 4,
+          children: requests.map((doc) {
+            final data = doc.data() as Map<String, dynamic>;
+
+            return Container(
+              margin: const EdgeInsets.only(bottom: 12),
+              padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
-                color: Colors.white38,
-                borderRadius: BorderRadius.circular(20),
+                color: const Color.fromARGB(255, 28, 28, 47),
+                borderRadius: BorderRadius.circular(14),
               ),
-            ),
-
-            const SizedBox(height: 24),
-
-            Align(
-              alignment: Alignment.centerLeft,
-              child: Text(
-                'Hello, $name 👋',
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 17,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-
-            const SizedBox(height: 8),
-
-            const Align(
-              alignment: Alignment.centerLeft,
-              child: Text(
-                'Available ride requests',
-                style: TextStyle(color: Colors.white60, fontSize: 13),
-              ),
-            ),
-
-            const SizedBox(height: 16),
-
-            if (snapshot.connectionState == ConnectionState.waiting)
-              const CircularProgressIndicator(color: Colors.green),
-
-            if (requests.isEmpty &&
-                snapshot.connectionState != ConnectionState.waiting)
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  color: const Color.fromARGB(255, 38, 38, 60),
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                child: const Text(
-                  'No ride requests yet',
-                  style: TextStyle(color: Colors.white70, fontSize: 14),
-                ),
-              ),
-
-            ...requests.map((doc) {
-              final data = doc.data() as Map<String, dynamic>;
-
-              return Container(
-                margin: const EdgeInsets.only(bottom: 10),
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  color: const Color.fromARGB(255, 38, 38, 60),
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(CupertinoIcons.person, color: Colors.green),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Text(
-                        '${data['name'] ?? 'Passenger'} • ${data['zone'] ?? ''}\n${data['pickupAddress'] ?? ''}',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 13,
-                          height: 1.4,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    data['name'] ?? 'Passager',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 15,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Départ : ${data['pickupAddress'] ?? ''}',
+                    style: const TextStyle(color: Colors.white70),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    'Destination : ${data['dropoffAddress'] ?? ''}',
+                    style: const TextStyle(color: Colors.white70),
+                  ),
+                  const SizedBox(height: 14),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: ElevatedButton(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.green,
+                          ),
+                          onPressed: () => acceptRide(doc.id),
+                          child: const Text(
+                            'Accepter',
+                            style: TextStyle(color: Colors.white),
+                          ),
                         ),
                       ),
-                    ),
-                  ],
-                ),
-              );
-            }),
-          ],
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: ElevatedButton(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.red,
+                          ),
+                          onPressed: () async {
+                            final driver = FirebaseAuth.instance.currentUser;
+                            if (driver == null) return;
+
+                            final rideRef = FirebaseFirestore.instance
+                                .collection('ride_requests')
+                                .doc(doc.id);
+
+                            final rideSnapshot = await rideRef.get();
+                            final rideData =
+                                rideSnapshot.data() as Map<String, dynamic>;
+
+                            final declinedBy = List<String>.from(
+                              rideData['declinedBy'] ?? [],
+                            );
+
+                            if (!declinedBy.contains(driver.uid)) {
+                              declinedBy.add(driver.uid);
+                            }
+
+                            final driversSnapshot = await FirebaseFirestore
+                                .instance
+                                .collection('users')
+                                .where('role', isEqualTo: 'driver')
+                                .get();
+
+                            final totalDrivers = driversSnapshot.docs.length;
+
+                            if (declinedBy.length >= totalDrivers) {
+                              await rideRef.update({
+                                'declinedBy': declinedBy,
+                                'status': 'no_driver_found',
+                                'noDriverFoundAt': FieldValue.serverTimestamp(),
+                              });
+                            } else {
+                              await rideRef.update({'declinedBy': declinedBy});
+                            }
+                          },
+                          child: const Text(
+                            'Refuser',
+                            style: TextStyle(color: Colors.white),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            );
+          }).toList(),
         );
       },
+    );
+  }
+}
+
+class _Panel extends StatelessWidget {
+  final String title;
+  final String subtitle;
+  final Widget child;
+
+  const _Panel({
+    required this.title,
+    required this.subtitle,
+    required this.child,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: const Color.fromARGB(255, 38, 38, 60),
+        borderRadius: BorderRadius.circular(24),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 21,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 7),
+          Text(
+            subtitle,
+            style: const TextStyle(color: Colors.white60, fontSize: 13),
+          ),
+          const SizedBox(height: 22),
+          child,
+        ],
+      ),
+    );
+  }
+}
+
+class _DashboardField extends StatelessWidget {
+  final TextEditingController controller;
+  final String label;
+  final IconData icon;
+
+  const _DashboardField({
+    required this.controller,
+    required this.label,
+    required this.icon,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return TextField(
+      controller: controller,
+      cursorColor: Colors.white,
+      style: const TextStyle(color: Colors.white),
+      decoration: InputDecoration(
+        prefixIcon: Icon(icon, color: Colors.green),
+        labelText: label,
+        labelStyle: const TextStyle(color: Colors.white70),
+        filled: true,
+        fillColor: const Color.fromARGB(255, 28, 28, 47),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: const BorderSide(color: Colors.white24),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: const BorderSide(color: Colors.green, width: 2),
+        ),
+      ),
     );
   }
 }
