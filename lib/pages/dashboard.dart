@@ -8,6 +8,7 @@ import 'package:ejp_ride_version/pages/profilepage.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class DashboardPage extends StatefulWidget {
   final String role;
@@ -159,9 +160,17 @@ class _DashboardPageState extends State<DashboardPage> {
 
     final predictions = response.data['predictions'] as List;
 
-    return predictions
-        .map((prediction) => prediction['description'].toString())
-        .toList();
+    return predictions.map((prediction) {
+      final fullAddress = prediction['description'].toString();
+
+      final parts = fullAddress.split(',');
+
+      if (parts.length >= 2) {
+        return '${parts[0].trim()}, ${parts[1].trim()}';
+      }
+
+      return fullAddress;
+    }).toList();
   }
 
   @override
@@ -198,14 +207,13 @@ class _DashboardPageState extends State<DashboardPage> {
             ),
             Expanded(
               child: SingleChildScrollView(
-                keyboardDismissBehavior:
-                    ScrollViewKeyboardDismissBehavior.onDrag,
-                padding: EdgeInsets.fromLTRB(
-                  20,
-                  18,
-                  20,
-                  MediaQuery.of(context).viewInsets.bottom + 30,
+                padding: EdgeInsets.only(
+                  left: 20,
+                  right: 20,
+                  top: 18,
+                  bottom: MediaQuery.of(context).viewInsets.bottom + 220,
                 ),
+
                 child: isDriver
                     ? _DriverSection(name: widget.name)
                     : _PassengerSection(
@@ -244,6 +252,9 @@ class _DashboardPageState extends State<DashboardPage> {
                             saveDestinationAsFavorite = value ?? false;
                           });
                         },
+
+                        getAddressSuggestions: getAddressSuggestions,
+
                         onSubmit: submitRideRequest,
                       ),
               ),
@@ -362,6 +373,8 @@ class _PassengerSection extends StatelessWidget {
   final String activeAddressField;
   final void Function(String) onActiveAddressFieldChanged;
 
+  final Future<List<String>> Function(String) getAddressSuggestions;
+
   const _PassengerSection({
     required this.name,
     required this.pickupController,
@@ -379,6 +392,7 @@ class _PassengerSection extends StatelessWidget {
     required this.onSubmit,
     required this.activeAddressField,
     required this.onActiveAddressFieldChanged,
+    required this.getAddressSuggestions,
   });
 
   double progressValue(String status) {
@@ -548,7 +562,7 @@ class _PassengerSection extends StatelessWidget {
         return _Panel(
           title: 'Planifier mon trajet',
           subtitle:
-              'Choisissez votre point de ramassage et votre destination pour dimanche.',
+              'Choisissez votre point de ramassage et rendez-vous y à 13h00.',
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -634,10 +648,11 @@ class _PassengerSection extends StatelessWidget {
                       onActiveAddressFieldChanged('pickup');
                     }
                   },
-                  child: _DashboardField(
+                  child: _AddressAutocompleteField(
                     controller: pickupController,
                     label: 'Adresse de ramassage',
                     icon: Icons.location_on_outlined,
+                    suggestionsCallback: getAddressSuggestions,
                   ),
                 ),
 
@@ -649,10 +664,11 @@ class _PassengerSection extends StatelessWidget {
                     onActiveAddressFieldChanged('destination');
                   }
                 },
-                child: _DashboardField(
+                child: _AddressAutocompleteField(
                   controller: dropoffController,
                   label: 'Destination',
                   icon: CupertinoIcons.flag_fill,
+                  suggestionsCallback: getAddressSuggestions,
                 ),
               ),
 
@@ -1070,6 +1086,8 @@ class _FavoriteAddressButtons extends StatelessWidget {
   }
 }
 
+//SECTION LABEL TO CHOOSE TYPE OF PICKUP
+
 class _SectionLabel extends StatelessWidget {
   final String text;
 
@@ -1088,6 +1106,136 @@ class _SectionLabel extends StatelessWidget {
   }
 }
 
+//AUTOCOMPLETE CLASS FOR
+
+class _AddressAutocompleteField extends StatefulWidget {
+  final TextEditingController controller;
+  final String label;
+  final IconData icon;
+  final Future<List<String>> Function(String) suggestionsCallback;
+
+  const _AddressAutocompleteField({
+    required this.controller,
+    required this.label,
+    required this.icon,
+    required this.suggestionsCallback,
+  });
+
+  @override
+  State<_AddressAutocompleteField> createState() =>
+      _AddressAutocompleteFieldState();
+}
+
+class _AddressAutocompleteFieldState extends State<_AddressAutocompleteField> {
+  List<String> suggestions = [];
+  bool isLoading = false;
+
+  Future<void> search(String value) async {
+    if (value.trim().length < 3) {
+      setState(() => suggestions = []);
+      return;
+    }
+
+    setState(() => isLoading = true);
+
+    final results = await widget.suggestionsCallback(value);
+
+    if (!mounted) return;
+
+    setState(() {
+      suggestions = results;
+      isLoading = false;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        TextField(
+          controller: widget.controller,
+          cursorColor: Colors.white,
+          style: const TextStyle(color: Colors.white, fontSize: 13),
+          onChanged: search,
+          decoration: InputDecoration(
+            isDense: true,
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 12,
+              vertical: 12,
+            ),
+            prefixIcon: Icon(widget.icon, color: Colors.green),
+            suffixIcon: widget.controller.text.isNotEmpty
+                ? IconButton(
+                    icon: const Icon(
+                      CupertinoIcons.xmark_circle_fill,
+                      color: Colors.white54,
+                      size: 18,
+                    ),
+                    onPressed: () {
+                      widget.controller.clear();
+                      setState(() => suggestions = []);
+                    },
+                  )
+                : null,
+            labelText: widget.label,
+            labelStyle: const TextStyle(color: Colors.white70, fontSize: 12),
+            filled: true,
+            fillColor: const Color.fromARGB(255, 28, 28, 47),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(14),
+              borderSide: const BorderSide(color: Colors.white24),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(14),
+              borderSide: const BorderSide(color: Colors.green, width: 2),
+            ),
+          ),
+        ),
+
+        if (isLoading)
+          const Padding(
+            padding: EdgeInsets.only(top: 8),
+            child: LinearProgressIndicator(color: Colors.green),
+          ),
+
+        if (suggestions.isNotEmpty)
+          Container(
+            margin: const EdgeInsets.only(top: 8),
+            decoration: BoxDecoration(
+              color: const Color.fromARGB(255, 28, 28, 47),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: Colors.white24),
+            ),
+            child: Column(
+              children: suggestions.take(3).map((suggestion) {
+                return ListTile(
+                  visualDensity: VisualDensity.compact,
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 12),
+                  dense: true,
+                  title: Text(
+                    suggestion,
+                    style: const TextStyle(color: Colors.white, fontSize: 12),
+                  ),
+                  onTap: () {
+                    Future.delayed(const Duration(milliseconds: 300), () {
+                      Scrollable.ensureVisible(
+                        context,
+                        duration: const Duration(milliseconds: 300),
+                        curve: Curves.easeInOut,
+                        alignment: 0.2,
+                      );
+                    });
+                  },
+                );
+              }).toList(),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+//DRIVER SECTION CLASS
 class _DriverSection extends StatelessWidget {
   final String name;
 
@@ -1109,6 +1257,8 @@ class _DriverSection extends StatelessWidget {
         return 'Assigné';
     }
   }
+
+  //updating ride status function
 
   Future<void> updateRideStatus(String rideId, String status) async {
     final updateData = <String, dynamic>{
@@ -1134,6 +1284,7 @@ class _DriverSection extends StatelessWidget {
         .update(updateData);
   }
 
+  //accepting ride function
   Future<void> acceptRide(String rideId) async {
     await FirebaseFirestore.instance
         .collection('ride_requests')
@@ -1143,6 +1294,16 @@ class _DriverSection extends StatelessWidget {
           'driverId': FirebaseAuth.instance.currentUser?.uid,
           'acceptedAt': FieldValue.serverTimestamp(),
         });
+  }
+
+  //appening address in google maps
+
+  Future<void> openAddressInMaps(String address) async {
+    final uri = Uri.parse(
+      'https://www.google.com/maps/search/?api=1&query=${Uri.encodeComponent(address)}',
+    );
+
+    await launchUrl(uri, mode: LaunchMode.externalApplication);
   }
 
   @override
@@ -1212,24 +1373,43 @@ class _DriverSection extends StatelessWidget {
                             data['name'] ?? 'Passager',
                             style: const TextStyle(
                               color: Colors.white,
-                              fontSize: 15,
+                              fontSize: 12,
                               fontWeight: FontWeight.bold,
                             ),
                           ),
                           const SizedBox(height: 8),
-                          Text(
-                            'Départ : ${data['pickupAddress'] ?? ''}',
-                            style: const TextStyle(color: Colors.white70),
+                          GestureDetector(
+                            onTap: () =>
+                                openAddressInMaps(data['pickupAddress'] ?? ''),
+                            child: Text(
+                              'Départ : ${data['pickupAddress'] ?? ''}',
+                              style: const TextStyle(
+                                color: Colors.green,
+                                fontSize: 13,
+                                decoration: TextDecoration.underline,
+                              ),
+                            ),
                           ),
                           const SizedBox(height: 6),
-                          Text(
-                            'Destination : ${data['dropoffAddress'] ?? ''}',
-                            style: const TextStyle(color: Colors.white70),
+                          GestureDetector(
+                            onTap: () =>
+                                openAddressInMaps(data['dropoffAddress'] ?? ''),
+                            child: Text(
+                              'Destination : ${data['dropoffAddress'] ?? ''}',
+                              style: const TextStyle(
+                                color: Colors.green,
+                                fontSize: 13,
+                                decoration: TextDecoration.underline,
+                              ),
+                            ),
                           ),
                           const SizedBox(height: 6),
                           Text(
                             'Statut : ${_statusLabel(status)}',
-                            style: const TextStyle(color: Colors.white60),
+                            style: const TextStyle(
+                              color: Colors.white60,
+                              fontSize: 12,
+                            ),
                           ),
                           const SizedBox(height: 14),
                           SizedBox(
@@ -1272,6 +1452,7 @@ class _DriverSection extends StatelessWidget {
   }
 }
 
+//AVAILABLE REQUESTS LIST CLASS
 class _AvailableRequestsList extends StatelessWidget {
   final String driverId;
   final Future<void> Function(String rideId) acceptRide;
@@ -1306,7 +1487,7 @@ class _AvailableRequestsList extends StatelessWidget {
         if (requests.isEmpty) {
           return const Text(
             'Aucune demande pour le moment.',
-            style: TextStyle(color: Colors.white60),
+            style: TextStyle(color: Colors.white60, fontSize: 14),
           );
         }
 
@@ -1328,21 +1509,29 @@ class _AvailableRequestsList extends StatelessWidget {
                     data['name'] ?? 'Passager',
                     style: const TextStyle(
                       color: Colors.white,
-                      fontSize: 15,
+                      fontSize: 14,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
+
                   const SizedBox(height: 8),
                   Text(
                     'Départ : ${data['pickupAddress'] ?? ''}',
-                    style: const TextStyle(color: Colors.white70),
+                    style: const TextStyle(color: Colors.white70, fontSize: 12),
                   ),
-                  const SizedBox(height: 6),
+                  const SizedBox(height: 8),
                   Text(
                     'Destination : ${data['dropoffAddress'] ?? ''}',
-                    style: const TextStyle(color: Colors.white70),
+                    style: const TextStyle(color: Colors.white70, fontSize: 12),
+                  ),
+                  const SizedBox(height: 8),
+
+                  Text(
+                    'Téléphone : ${data['phone'] ?? ''}',
+                    style: const TextStyle(color: Colors.white70, fontSize: 12),
                   ),
                   const SizedBox(height: 14),
+
                   Row(
                     children: [
                       Expanded(
@@ -1419,6 +1608,7 @@ class _AvailableRequestsList extends StatelessWidget {
   }
 }
 
+//PANNEL THAT DISPLAYS ALL
 class _Panel extends StatelessWidget {
   final String title;
   final String subtitle;
@@ -1446,14 +1636,14 @@ class _Panel extends StatelessWidget {
             title,
             style: const TextStyle(
               color: Colors.white,
-              fontSize: 21,
+              fontSize: 16,
               fontWeight: FontWeight.bold,
             ),
           ),
           const SizedBox(height: 7),
           Text(
             subtitle,
-            style: const TextStyle(color: Colors.white60, fontSize: 13),
+            style: const TextStyle(color: Colors.white60, fontSize: 12),
           ),
           const SizedBox(height: 22),
           child,
@@ -1463,6 +1653,7 @@ class _Panel extends StatelessWidget {
   }
 }
 
+//DASHBOARD FIELD CLASS
 class _DashboardField extends StatelessWidget {
   final TextEditingController controller;
   final String label;

@@ -50,6 +50,7 @@ dependencies:
   image_cropper: ^12.2.1
   flutter_typeahead: ^6.0.0
   dio: ^5.9.2
+  url_launcher: ^6.3.2
 
 dev_dependencies:
   flutter_test:
