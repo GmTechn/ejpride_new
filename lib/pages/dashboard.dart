@@ -9,6 +9,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 class DashboardPage extends StatefulWidget {
   final String role;
@@ -63,6 +64,7 @@ class _DashboardPageState extends State<DashboardPage> {
   @override
   void initState() {
     super.initState();
+
     dashboardProfileImage = widget.profileImage;
   }
 
@@ -173,94 +175,193 @@ class _DashboardPageState extends State<DashboardPage> {
     }).toList();
   }
 
+  //open profile page by clikcing on pp
+  Future<void> _openProfile() async {
+    final updatedImage = await Navigator.push<File?>(
+      context,
+      MaterialPageRoute(
+        builder: (context) => UserProfilePage(
+          name: widget.name,
+          email: widget.email,
+          zone: widget.zone,
+          role: widget.role,
+          phone: widget.phone,
+          profileImage: dashboardProfileImage,
+        ),
+      ),
+    );
+
+    if (updatedImage != null) {
+      setState(() => dashboardProfileImage = updatedImage);
+    }
+  }
+
+  //open dashboard or turn it into a bottom modal sheet
+  Future<void> _openDashboardSheet() async {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      isDismissible: false,
+      enableDrag: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        return DraggableScrollableSheet(
+          initialChildSize: 0.55,
+          minChildSize: 0.28,
+          maxChildSize: 0.92,
+          expand: false,
+          builder: (context, scrollController) {
+            return Container(
+              decoration: const BoxDecoration(
+                color: Color.fromARGB(255, 38, 38, 60),
+                borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+              ),
+              child: Column(
+                children: [
+                  const SizedBox(height: 12),
+
+                  Container(
+                    width: 45,
+                    height: 5,
+                    decoration: BoxDecoration(
+                      color: Colors.white30,
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                  ),
+
+                  const SizedBox(height: 16),
+
+                  Expanded(
+                    child: SingleChildScrollView(
+                      controller: scrollController,
+                      padding: const EdgeInsets.fromLTRB(20, 0, 20, 100),
+                      child: isDriver
+                          ? _DriverSection(name: widget.name)
+                          : _PassengerSection(
+                              name: widget.name,
+                              pickupController: pickupController,
+                              dropoffController: dropoffController,
+                              pickupType: pickupType,
+                              selectedMeetingPoint: selectedMeetingPoint,
+                              meetingPoints: meetingPoints,
+                              onPickupTypeChanged: (value) {
+                                setState(() => pickupType = value);
+                              },
+                              onMeetingPointChanged: (value) {
+                                setState(() => selectedMeetingPoint = value);
+                              },
+                              selectedFavoriteAddress: selectedFavoriteAddress,
+                              favoriteLabelController: favoriteLabelController,
+                              saveDestinationAsFavorite:
+                                  saveDestinationAsFavorite,
+                              onFavoriteSelected: (value) {
+                                setState(() => selectedFavoriteAddress = value);
+                              },
+                              onSaveFavoriteChanged: (value) {
+                                setState(() {
+                                  saveDestinationAsFavorite = value ?? false;
+                                });
+                              },
+                              onSubmit: submitRideRequest,
+                              activeAddressField: activeAddressField,
+                              onActiveAddressFieldChanged: (value) {
+                                setState(() => activeAddressField = value);
+                              },
+                              getAddressSuggestions: getAddressSuggestions,
+                            ),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       resizeToAvoidBottomInset: true,
       backgroundColor: const Color.fromARGB(255, 28, 28, 47),
-      body: SafeArea(
-        child: Column(
-          children: [
-            _TopBar(
+      body: Stack(
+        children: [
+          GoogleMap(
+            initialCameraPosition: const CameraPosition(
+              target: LatLng(45.4215, -75.6972),
+              zoom: 13,
+            ),
+            myLocationEnabled: true,
+            myLocationButtonEnabled: true,
+            zoomControlsEnabled: false,
+          ),
+
+          SafeArea(
+            child: _TopBar(
               name: widget.name,
               zone: widget.zone,
               profileImage: dashboardProfileImage,
-              onProfileTap: () async {
-                final updatedImage = await Navigator.push<File?>(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => UserProfilePage(
-                      name: widget.name,
-                      email: widget.email,
-                      zone: widget.zone,
-                      role: widget.role,
-                      phone: widget.phone,
-                      profileImage: dashboardProfileImage,
-                    ),
-                  ),
-                );
-
-                if (updatedImage != null) {
-                  setState(() => dashboardProfileImage = updatedImage);
-                }
-              },
+              onProfileTap: _openProfile,
             ),
-            Expanded(
-              child: SingleChildScrollView(
-                padding: EdgeInsets.only(
-                  left: 20,
-                  right: 20,
-                  top: 18,
-                  bottom: MediaQuery.of(context).viewInsets.bottom + 220,
+          ),
+
+          DraggableScrollableSheet(
+            initialChildSize: 0.55,
+            minChildSize: 0.28,
+            maxChildSize: 0.92,
+            builder: (context, scrollController) {
+              return Container(
+                decoration: const BoxDecoration(
+                  color: Color.fromARGB(255, 38, 38, 60),
+                  borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
                 ),
-
-                child: isDriver
-                    ? _DriverSection(name: widget.name)
-                    : _PassengerSection(
-                        name: widget.name,
-                        pickupController: pickupController,
-                        dropoffController: dropoffController,
-                        activeAddressField: activeAddressField,
-                        onActiveAddressFieldChanged: (value) {
-                          setState(() {
-                            activeAddressField = value;
-                          });
-                        },
-                        pickupType: pickupType,
-                        selectedMeetingPoint: selectedMeetingPoint,
-                        meetingPoints: meetingPoints,
-                        onPickupTypeChanged: (value) {
-                          setState(() {
-                            pickupType = value;
-                          });
-                        },
-                        onMeetingPointChanged: (value) {
-                          setState(() {
-                            selectedMeetingPoint = value;
-                          });
-                        },
-                        selectedFavoriteAddress: selectedFavoriteAddress,
-                        favoriteLabelController: favoriteLabelController,
-                        saveDestinationAsFavorite: saveDestinationAsFavorite,
-                        onFavoriteSelected: (value) {
-                          setState(() {
-                            selectedFavoriteAddress = value;
-                          });
-                        },
-                        onSaveFavoriteChanged: (value) {
-                          setState(() {
-                            saveDestinationAsFavorite = value ?? false;
-                          });
-                        },
-
-                        getAddressSuggestions: getAddressSuggestions,
-
-                        onSubmit: submitRideRequest,
-                      ),
-              ),
-            ),
-          ],
-        ),
+                child: SingleChildScrollView(
+                  controller: scrollController,
+                  padding: EdgeInsets.fromLTRB(
+                    20,
+                    20,
+                    20,
+                    MediaQuery.of(context).viewInsets.bottom + 80,
+                  ),
+                  child: isDriver
+                      ? _DriverSection(name: widget.name)
+                      : _PassengerSection(
+                          name: widget.name,
+                          pickupController: pickupController,
+                          dropoffController: dropoffController,
+                          pickupType: pickupType,
+                          selectedMeetingPoint: selectedMeetingPoint,
+                          meetingPoints: meetingPoints,
+                          onPickupTypeChanged: (value) {
+                            setState(() => pickupType = value);
+                          },
+                          onMeetingPointChanged: (value) {
+                            setState(() => selectedMeetingPoint = value);
+                          },
+                          selectedFavoriteAddress: selectedFavoriteAddress,
+                          favoriteLabelController: favoriteLabelController,
+                          saveDestinationAsFavorite: saveDestinationAsFavorite,
+                          onFavoriteSelected: (value) {
+                            setState(() => selectedFavoriteAddress = value);
+                          },
+                          onSaveFavoriteChanged: (value) {
+                            setState(() {
+                              saveDestinationAsFavorite = value ?? false;
+                            });
+                          },
+                          onSubmit: submitRideRequest,
+                          activeAddressField: activeAddressField,
+                          onActiveAddressFieldChanged: (value) {
+                            setState(() => activeAddressField = value);
+                          },
+                          getAddressSuggestions: getAddressSuggestions,
+                        ),
+                ),
+              );
+            },
+          ),
+        ],
       ),
     );
   }
@@ -285,47 +386,85 @@ class _TopBar extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(18, 12, 18, 8),
       child: Row(
         children: [
+          // PROFILE
           GestureDetector(
             onTap: onProfileTap,
             child: CircleAvatar(
-              radius: 27,
+              radius: 26,
               backgroundColor: Colors.white,
               backgroundImage: profileImage != null
                   ? FileImage(profileImage!)
                   : null,
               child: profileImage == null
-                  ? const Icon(Icons.person, color: Colors.green, size: 28)
+                  ? const Icon(
+                      CupertinoIcons.person_fill,
+                      color: Color(0xFF246123),
+                      size: 26,
+                    )
                   : null,
             ),
           ),
-          const SizedBox(width: 12),
+
+          const SizedBox(width: 14),
+
+          // LOCATION CENTER CARD
           Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Bonjour, $name 👋',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 17,
-                    fontWeight: FontWeight.bold,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              decoration: BoxDecoration(
+                color: const Color.fromARGB(255, 38, 38, 60),
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(color: Colors.white.withOpacity(0.08)),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text(
+                    'Votre position actuelle',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: Colors.white60, fontSize: 11),
                   ),
-                ),
-                const SizedBox(height: 3),
-                Text(
-                  zone,
-                  style: const TextStyle(color: Colors.white60, fontSize: 13),
-                ),
-              ],
+
+                  const SizedBox(height: 4),
+
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(
+                        CupertinoIcons.location_solid,
+                        size: 14,
+                        color: Color(0xFF246123),
+                      ),
+                      const SizedBox(width: 5),
+                      Flexible(
+                        child: Text(
+                          zone,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ),
           ),
+
+          const SizedBox(width: 14),
+
+          // NOTIFICATION
           Container(
-            padding: const EdgeInsets.all(11),
-            decoration: const BoxDecoration(
-              color: Color.fromARGB(255, 38, 38, 60),
+            width: 52,
+            height: 52,
+            decoration: BoxDecoration(
+              color: const Color.fromARGB(255, 38, 38, 60),
               shape: BoxShape.circle,
+              border: Border.all(color: Colors.white.withOpacity(0.08)),
             ),
             child: const Icon(
               CupertinoIcons.bell,
@@ -1130,6 +1269,15 @@ class _AddressAutocompleteFieldState extends State<_AddressAutocompleteField> {
   List<String> suggestions = [];
   bool isLoading = false;
 
+  @override
+  void initState() {
+    super.initState();
+
+    widget.controller.addListener(() {
+      if (mounted) setState(() {});
+    });
+  }
+
   Future<void> search(String value) async {
     if (value.trim().length < 3) {
       setState(() => suggestions = []);
@@ -1217,14 +1365,16 @@ class _AddressAutocompleteFieldState extends State<_AddressAutocompleteField> {
                     style: const TextStyle(color: Colors.white, fontSize: 12),
                   ),
                   onTap: () {
-                    Future.delayed(const Duration(milliseconds: 300), () {
-                      Scrollable.ensureVisible(
-                        context,
-                        duration: const Duration(milliseconds: 300),
-                        curve: Curves.easeInOut,
-                        alignment: 0.2,
-                      );
+                    setState(() {
+                      widget.controller.text = suggestion;
+                      suggestions = [];
                     });
+
+                    widget.controller.selection = TextSelection.fromPosition(
+                      TextPosition(offset: widget.controller.text.length),
+                    );
+
+                    FocusScope.of(context).unfocus();
                   },
                 );
               }).toList(),
@@ -1478,11 +1628,12 @@ class _AvailableRequestsList extends StatelessWidget {
           return !declinedBy.contains(driverId);
         }).toList();
 
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(
-            child: CircularProgressIndicator(color: Colors.green),
-          );
-        }
+        // if (snapshot.connectionState == ConnectionState.waiting &&
+        //     !snapshot.hasData) {
+        //   return const Center(
+        //     child: CircularProgressIndicator(color: Colors.green),
+        //   );
+        // }
 
         if (requests.isEmpty) {
           return const Text(
