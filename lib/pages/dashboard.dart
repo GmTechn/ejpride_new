@@ -4,12 +4,15 @@ import 'dart:io';
 import 'package:dio/dio.dart';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:ejp_ride_version/pages/notifications.dart';
 import 'package:ejp_ride_version/pages/profilepage.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:geocoding/geocoding.dart';
 
 class DashboardPage extends StatefulWidget {
   final String role;
@@ -39,12 +42,14 @@ class _DashboardPageState extends State<DashboardPage> {
   final String googleApiKey = 'AIzaSyDeKQL_4I2p_VESfOV2wiivm0LC8oefbDw';
 
   File? dashboardProfileImage;
+  GoogleMapController? mapController;
 
   final pickupController = TextEditingController();
   final dropoffController = TextEditingController();
   final favoriteLabelController = TextEditingController();
-  String activeAddressField = 'destination';
 
+  String activeAddressField = 'destination';
+  String currentCity = 'Position actuelle';
   String pickupType = 'meeting_point';
   String? selectedMeetingPoint;
   String? selectedFavoriteAddress;
@@ -64,8 +69,8 @@ class _DashboardPageState extends State<DashboardPage> {
   @override
   void initState() {
     super.initState();
-
     dashboardProfileImage = widget.profileImage;
+    loadCurrentCity();
   }
 
   @override
@@ -74,6 +79,34 @@ class _DashboardPageState extends State<DashboardPage> {
     dropoffController.dispose();
     favoriteLabelController.dispose();
     super.dispose();
+  }
+
+  //loading current city to display it
+
+  Future<void> loadCurrentCity() async {
+    final permission = await Geolocator.requestPermission();
+
+    if (permission == LocationPermission.denied ||
+        permission == LocationPermission.deniedForever) {
+      return;
+    }
+
+    final position = await Geolocator.getCurrentPosition();
+
+    final placemarks = await placemarkFromCoordinates(
+      position.latitude,
+      position.longitude,
+    );
+
+    if (placemarks.isEmpty) return;
+
+    final place = placemarks.first;
+
+    setState(() {
+      currentCity = place.locality?.isNotEmpty == true
+          ? place.locality!
+          : place.subAdministrativeArea ?? 'Position actuelle';
+    });
   }
 
   //Submit request function
@@ -196,87 +229,37 @@ class _DashboardPageState extends State<DashboardPage> {
     }
   }
 
-  //open dashboard or turn it into a bottom modal sheet
-  Future<void> _openDashboardSheet() async {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      isDismissible: false,
-      enableDrag: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) {
-        return DraggableScrollableSheet(
-          initialChildSize: 0.55,
-          minChildSize: 0.28,
-          maxChildSize: 0.92,
-          expand: false,
-          builder: (context, scrollController) {
-            return Container(
-              decoration: const BoxDecoration(
-                color: Color.fromARGB(255, 38, 38, 60),
-                borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-              ),
-              child: Column(
-                children: [
-                  const SizedBox(height: 12),
+  //to go to current location
+  Future<void> goToCurrentLocation() async {
+    final serviceEnabled = await Geolocator.isLocationServiceEnabled();
+    if (!serviceEnabled) return;
 
-                  Container(
-                    width: 45,
-                    height: 5,
-                    decoration: BoxDecoration(
-                      color: Colors.white30,
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                  ),
+    LocationPermission permission = await Geolocator.checkPermission();
 
-                  const SizedBox(height: 16),
+    if (permission == LocationPermission.denied) {
+      permission = await Geolocator.requestPermission();
+    }
 
-                  Expanded(
-                    child: SingleChildScrollView(
-                      controller: scrollController,
-                      padding: const EdgeInsets.fromLTRB(20, 0, 20, 100),
-                      child: isDriver
-                          ? _DriverSection(name: widget.name)
-                          : _PassengerSection(
-                              name: widget.name,
-                              pickupController: pickupController,
-                              dropoffController: dropoffController,
-                              pickupType: pickupType,
-                              selectedMeetingPoint: selectedMeetingPoint,
-                              meetingPoints: meetingPoints,
-                              onPickupTypeChanged: (value) {
-                                setState(() => pickupType = value);
-                              },
-                              onMeetingPointChanged: (value) {
-                                setState(() => selectedMeetingPoint = value);
-                              },
-                              selectedFavoriteAddress: selectedFavoriteAddress,
-                              favoriteLabelController: favoriteLabelController,
-                              saveDestinationAsFavorite:
-                                  saveDestinationAsFavorite,
-                              onFavoriteSelected: (value) {
-                                setState(() => selectedFavoriteAddress = value);
-                              },
-                              onSaveFavoriteChanged: (value) {
-                                setState(() {
-                                  saveDestinationAsFavorite = value ?? false;
-                                });
-                              },
-                              onSubmit: submitRideRequest,
-                              activeAddressField: activeAddressField,
-                              onActiveAddressFieldChanged: (value) {
-                                setState(() => activeAddressField = value);
-                              },
-                              getAddressSuggestions: getAddressSuggestions,
-                            ),
-                    ),
-                  ),
-                ],
-              ),
-            );
-          },
-        );
-      },
+    if (permission == LocationPermission.denied ||
+        permission == LocationPermission.deniedForever) {
+      return;
+    }
+
+    final position = await Geolocator.getCurrentPosition();
+
+    mapController?.animateCamera(
+      CameraUpdate.newLatLngZoom(
+        LatLng(position.latitude, position.longitude),
+        16,
+      ),
+    );
+  }
+
+  // open notifications
+  void _openNotifications() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const NotificationsPage()),
     );
   }
 
@@ -288,6 +271,9 @@ class _DashboardPageState extends State<DashboardPage> {
       body: Stack(
         children: [
           GoogleMap(
+            onMapCreated: (controller) {
+              mapController = controller;
+            },
             initialCameraPosition: const CameraPosition(
               target: LatLng(45.4215, -75.6972),
               zoom: 13,
@@ -296,13 +282,37 @@ class _DashboardPageState extends State<DashboardPage> {
             myLocationButtonEnabled: true,
             zoomControlsEnabled: false,
           ),
+          Positioned(
+            right: 18,
+            bottom: 340,
+            child: GestureDetector(
+              onTap: goToCurrentLocation,
+              child: Container(
+                width: 52,
+                height: 52,
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.08),
+                  ),
+                ),
+                child: const Icon(
+                  CupertinoIcons.placemark_fill,
+                  color: Colors.red,
+                  size: 20,
+                ),
+              ),
+            ),
+          ),
 
           SafeArea(
             child: _TopBar(
               name: widget.name,
-              zone: widget.zone,
+              zone: currentCity,
               profileImage: dashboardProfileImage,
               onProfileTap: _openProfile,
+              onNotificationTap: _openNotifications,
             ),
           ),
 
@@ -372,12 +382,14 @@ class _TopBar extends StatelessWidget {
   final String zone;
   final File? profileImage;
   final VoidCallback onProfileTap;
+  final VoidCallback onNotificationTap;
 
   const _TopBar({
     required this.name,
     required this.zone,
     required this.profileImage,
     required this.onProfileTap,
+    required this.onNotificationTap,
   });
 
   @override
@@ -398,7 +410,7 @@ class _TopBar extends StatelessWidget {
               child: profileImage == null
                   ? const Icon(
                       CupertinoIcons.person_fill,
-                      color: Color(0xFF246123),
+                      color: Color.fromARGB(255, 38, 38, 60),
                       size: 26,
                     )
                   : null,
@@ -412,7 +424,7 @@ class _TopBar extends StatelessWidget {
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
               decoration: BoxDecoration(
-                color: const Color.fromARGB(255, 38, 38, 60),
+                color: Colors.white.withValues(alpha: 0.70),
                 borderRadius: BorderRadius.circular(18),
                 border: Border.all(color: Colors.white.withOpacity(0.08)),
               ),
@@ -420,35 +432,27 @@ class _TopBar extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   const Text(
-                    'Votre position actuelle',
+                    'Position Actuelle',
                     textAlign: TextAlign.center,
-                    style: TextStyle(color: Colors.white60, fontSize: 11),
+                    style: TextStyle(
+                      color: Colors.black,
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
 
-                  const SizedBox(height: 4),
-
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Icon(
-                        CupertinoIcons.location_solid,
-                        size: 14,
-                        color: Color(0xFF246123),
+                  const SizedBox(width: 5),
+                  Flexible(
+                    child: Text(
+                      zone,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Colors.black,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
                       ),
-                      const SizedBox(width: 5),
-                      Flexible(
-                        child: Text(
-                          zone,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 14,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                      ),
-                    ],
+                    ),
                   ),
                 ],
               ),
@@ -458,18 +462,21 @@ class _TopBar extends StatelessWidget {
           const SizedBox(width: 14),
 
           // NOTIFICATION
-          Container(
-            width: 52,
-            height: 52,
-            decoration: BoxDecoration(
-              color: const Color.fromARGB(255, 38, 38, 60),
-              shape: BoxShape.circle,
-              border: Border.all(color: Colors.white.withOpacity(0.08)),
-            ),
-            child: const Icon(
-              CupertinoIcons.bell,
-              color: Colors.white,
-              size: 20,
+          GestureDetector(
+            onTap: onNotificationTap,
+            child: Container(
+              width: 52,
+              height: 52,
+              decoration: BoxDecoration(
+                color: Colors.black.withValues(alpha: 0.28),
+                shape: BoxShape.circle,
+                border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+              ),
+              child: const Icon(
+                CupertinoIcons.bell,
+                color: Colors.white,
+                size: 20,
+              ),
             ),
           ),
         ],
@@ -693,6 +700,58 @@ class _PassengerSection extends StatelessWidget {
                       style: TextStyle(color: Colors.white),
                     ),
                   ),
+
+                if (status == 'waiting' || status == 'assigned') ...[
+                  const SizedBox(height: 16),
+
+                  SizedBox(
+                    width: double.infinity,
+                    height: 50,
+                    child: OutlinedButton(
+                      onPressed: () async {
+                        final driverId = data['driverId'];
+
+                        await FirebaseFirestore.instance
+                            .collection('ride_requests')
+                            .doc(requests.first.id)
+                            .update({
+                              'status': 'cancelled',
+                              'cancelledBy': 'passenger',
+                              'cancelledAt': FieldValue.serverTimestamp(),
+                            });
+
+                        if (driverId != null &&
+                            driverId.toString().isNotEmpty) {
+                          await FirebaseFirestore.instance
+                              .collection('notifications')
+                              .add({
+                                'userId': driverId,
+                                'title': 'Trajet annulé',
+                                'message':
+                                    '${data['name'] ?? 'Un passager'} a annulé sa demande.',
+                                'type': 'ride_cancelled',
+                                'rideId': requests.first.id,
+                                'read': false,
+                                'createdAt': FieldValue.serverTimestamp(),
+                              });
+                        }
+                      },
+                      style: OutlinedButton.styleFrom(
+                        side: const BorderSide(color: Colors.red),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                      ),
+                      child: const Text(
+                        'Annuler la demande',
+                        style: TextStyle(
+                          color: Colors.red,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ],
             ),
           );

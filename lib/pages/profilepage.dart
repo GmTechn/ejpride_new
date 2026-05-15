@@ -71,6 +71,8 @@ class _UserProfilePageState extends State<UserProfilePage> {
     });
   }
 
+  // picking and cropping image for profile picture
+
   Future<void> pickAndCropImage() async {
     final XFile? pickedImage = await picker.pickImage(
       source: ImageSource.gallery,
@@ -85,7 +87,7 @@ class _UserProfilePageState extends State<UserProfilePage> {
       uiSettings: [
         IOSUiSettings(title: 'Crop Profile Picture'),
         AndroidUiSettings(
-          toolbarTitle: 'Crop Profile Picture',
+          toolbarTitle: 'Rogner la photo de profil',
           lockAspectRatio: true,
         ),
       ],
@@ -100,9 +102,9 @@ class _UserProfilePageState extends State<UserProfilePage> {
 
       await updateUserField('profileImagePath', croppedImage.path);
 
-      if (mounted) {
-        Navigator.pop(context, newImage);
-      }
+      setState(() {
+        profileImage = newImage;
+      });
     }
   }
 
@@ -117,15 +119,15 @@ class _UserProfilePageState extends State<UserProfilePage> {
         return AlertDialog(
           backgroundColor: const Color.fromARGB(255, 38, 38, 60),
           title: const Text(
-            'Edit Name',
-            style: TextStyle(color: Colors.white, fontSize: 18),
+            'Modifier mon nom',
+            style: TextStyle(color: Colors.white, fontSize: 16),
           ),
           content: TextField(
             controller: nameController,
             cursorColor: Colors.white,
-            style: const TextStyle(color: Colors.white),
+            style: const TextStyle(color: Colors.white, fontSize: 14),
             decoration: InputDecoration(
-              hintText: 'Enter your name',
+              hintText: 'Saisissez votre nom',
               hintStyle: const TextStyle(color: Colors.white38),
               enabledBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
@@ -141,7 +143,7 @@ class _UserProfilePageState extends State<UserProfilePage> {
             TextButton(
               onPressed: () => Navigator.pop(context),
               child: const Text(
-                'Cancel',
+                'Annuler',
                 style: TextStyle(color: Colors.white70),
               ),
             ),
@@ -159,7 +161,10 @@ class _UserProfilePageState extends State<UserProfilePage> {
 
                 if (context.mounted) Navigator.pop(context);
               },
-              child: const Text('Save', style: TextStyle(color: Colors.green)),
+              child: const Text(
+                'Sauvegarder',
+                style: TextStyle(color: Colors.green),
+              ),
             ),
           ],
         );
@@ -178,16 +183,16 @@ class _UserProfilePageState extends State<UserProfilePage> {
         return AlertDialog(
           backgroundColor: const Color.fromARGB(255, 38, 38, 60),
           title: const Text(
-            'Edit Phone Number',
-            style: TextStyle(color: Colors.white, fontSize: 18),
+            'Modifier mon numéro de téléphone ',
+            style: TextStyle(color: Colors.white, fontSize: 16),
           ),
           content: TextField(
             controller: phoneController,
             keyboardType: TextInputType.phone,
             cursorColor: Colors.white,
-            style: const TextStyle(color: Colors.white),
+            style: const TextStyle(color: Colors.white, fontSize: 14),
             decoration: InputDecoration(
-              hintText: 'Enter phone number',
+              hintText: 'Saisissez votre numéro de téléphone',
               hintStyle: const TextStyle(color: Colors.white38),
               enabledBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
@@ -203,7 +208,7 @@ class _UserProfilePageState extends State<UserProfilePage> {
             TextButton(
               onPressed: () => Navigator.pop(context),
               child: const Text(
-                'Cancel',
+                'Annuler',
                 style: TextStyle(color: Colors.white70),
               ),
             ),
@@ -221,7 +226,10 @@ class _UserProfilePageState extends State<UserProfilePage> {
 
                 if (context.mounted) Navigator.pop(context);
               },
-              child: const Text('Save', style: TextStyle(color: Colors.green)),
+              child: const Text(
+                'Sauvegarder',
+                style: TextStyle(color: Colors.green),
+              ),
             ),
           ],
         );
@@ -229,6 +237,7 @@ class _UserProfilePageState extends State<UserProfilePage> {
     );
   }
 
+  //editting zone
   void editZone() {
     String selectedZone = zone;
 
@@ -238,13 +247,13 @@ class _UserProfilePageState extends State<UserProfilePage> {
         return AlertDialog(
           backgroundColor: const Color.fromARGB(255, 38, 38, 60),
           title: const Text(
-            'Edit Zone',
-            style: TextStyle(color: Colors.white, fontSize: 18),
+            'Modifier ma zone',
+            style: TextStyle(color: Colors.white, fontSize: 16),
           ),
           content: DropdownButtonFormField<String>(
             initialValue: selectedZone,
             dropdownColor: const Color.fromARGB(255, 38, 38, 60),
-            style: const TextStyle(color: Colors.white),
+            style: const TextStyle(color: Colors.white, fontSize: 14),
             decoration: InputDecoration(
               enabledBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
@@ -268,7 +277,7 @@ class _UserProfilePageState extends State<UserProfilePage> {
             TextButton(
               onPressed: () => Navigator.pop(context),
               child: const Text(
-                'Cancel',
+                'Annuler',
                 style: TextStyle(color: Colors.white70),
               ),
             ),
@@ -282,7 +291,10 @@ class _UserProfilePageState extends State<UserProfilePage> {
 
                 if (context.mounted) Navigator.pop(context);
               },
-              child: const Text('Save', style: TextStyle(color: Colors.green)),
+              child: const Text(
+                'Sauvegarder',
+                style: TextStyle(color: Colors.green),
+              ),
             ),
           ],
         );
@@ -290,6 +302,7 @@ class _UserProfilePageState extends State<UserProfilePage> {
     );
   }
 
+  //logout function
   Future<void> logout(BuildContext context) async {
     await FirebaseAuth.instance.signOut();
 
@@ -302,13 +315,13 @@ class _UserProfilePageState extends State<UserProfilePage> {
     }
   }
 
+  //deleting account
   Future<void> deleteAccount(BuildContext context) async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
 
     await FirebaseFirestore.instance.collection('users').doc(user.uid).delete();
 
-    
     await user.delete();
 
     if (context.mounted) {
@@ -320,6 +333,7 @@ class _UserProfilePageState extends State<UserProfilePage> {
     }
   }
 
+  //confirm deleting account pop up
   void confirmDeleteAccount() {
     showDialog(
       context: context,
@@ -362,8 +376,16 @@ class _UserProfilePageState extends State<UserProfilePage> {
         backgroundColor: const Color.fromARGB(255, 28, 28, 47),
         elevation: 0,
         iconTheme: const IconThemeData(color: Colors.white),
+
+        leading: IconButton(
+          icon: const Icon(CupertinoIcons.back),
+          onPressed: () {
+            Navigator.pop(context, profileImage);
+          },
+        ),
+
         title: const Text(
-          'My Profile',
+          'Mon Profil',
           style: TextStyle(color: Colors.white, fontSize: 18),
         ),
       ),
@@ -402,7 +424,7 @@ class _UserProfilePageState extends State<UserProfilePage> {
               TextButton(
                 onPressed: pickAndCropImage,
                 child: const Text(
-                  'Change profile picture',
+                  'Changer ma de photo de profile',
                   style: TextStyle(color: Colors.green, fontSize: 13),
                 ),
               ),
@@ -429,7 +451,7 @@ class _UserProfilePageState extends State<UserProfilePage> {
 
               _ProfileTile(
                 icon: CupertinoIcons.person_fill,
-                title: 'Name',
+                title: 'Nom',
                 value: name,
                 onTap: editName,
               ),
@@ -438,7 +460,7 @@ class _UserProfilePageState extends State<UserProfilePage> {
 
               _ProfileTile(
                 icon: CupertinoIcons.mail_solid,
-                title: 'Email',
+                title: 'Courriel',
                 value: email,
                 onTap: () {},
               ),
@@ -447,8 +469,8 @@ class _UserProfilePageState extends State<UserProfilePage> {
 
               _ProfileTile(
                 icon: CupertinoIcons.phone_fill,
-                title: 'Phone Number',
-                value: phone.isEmpty ? 'Not available yet' : phone,
+                title: 'Téléphone',
+                value: phone.isEmpty ? 'Pas encore disponible' : phone,
                 onTap: editPhone,
               ),
 
@@ -475,7 +497,7 @@ class _UserProfilePageState extends State<UserProfilePage> {
                   ),
                   onPressed: () => logout(context),
                   child: const Text(
-                    'Logout',
+                    'Déconnexion',
                     style: TextStyle(color: Colors.white, fontSize: 15),
                   ),
                 ),
@@ -486,7 +508,7 @@ class _UserProfilePageState extends State<UserProfilePage> {
               TextButton(
                 onPressed: confirmDeleteAccount,
                 child: const Text(
-                  'Delete Account',
+                  'Supprimer mon compte',
                   style: TextStyle(color: Colors.red),
                 ),
               ),

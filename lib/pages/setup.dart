@@ -182,7 +182,7 @@ class _ProfileSetUpPageState extends State<ProfileSetUpPage> {
           email: user.email ?? '',
           zone: selectedZone!,
           phone: phoneController.text.trim(),
-          profileImage: null, // TEMPORAIRE pour éviter crash mémoire
+          profileImage: _profileImage, // TEMPORAIRE pour éviter crash mémoire
         ),
       ),
     );
