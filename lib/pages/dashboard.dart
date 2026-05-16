@@ -21,6 +21,7 @@ class DashboardPage extends StatefulWidget {
   final String zone;
   final String phone;
   final File? profileImage;
+  final String? profileImageUrl;
 
   const DashboardPage({
     super.key,
@@ -30,6 +31,7 @@ class DashboardPage extends StatefulWidget {
     required this.zone,
     required this.phone,
     this.profileImage,
+    this.profileImageUrl,
   });
 
   @override
@@ -42,6 +44,7 @@ class _DashboardPageState extends State<DashboardPage> {
   final String googleApiKey = 'AIzaSyDeKQL_4I2p_VESfOV2wiivm0LC8oefbDw';
 
   File? dashboardProfileImage;
+  String? dashboardProfileImageUrl;
   GoogleMapController? mapController;
 
   final pickupController = TextEditingController();
@@ -70,6 +73,7 @@ class _DashboardPageState extends State<DashboardPage> {
   void initState() {
     super.initState();
     dashboardProfileImage = widget.profileImage;
+    dashboardProfileImageUrl = widget.profileImageUrl;
     loadCurrentCity();
   }
 
@@ -220,13 +224,28 @@ class _DashboardPageState extends State<DashboardPage> {
           role: widget.role,
           phone: widget.phone,
           profileImage: dashboardProfileImage,
+          profileImageUrl: dashboardProfileImageUrl,
         ),
       ),
     );
 
-    if (updatedImage != null) {
-      setState(() => dashboardProfileImage = updatedImage);
-    }
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    final doc = await FirebaseFirestore.instance
+        .collection('users')
+        .doc(user.uid)
+        .get();
+
+    final latestUrl = doc.data()?['profileImageUrl'] ?? '';
+
+    setState(() {
+      if (updatedImage != null) {
+        dashboardProfileImage = updatedImage;
+      }
+
+      dashboardProfileImageUrl = latestUrl;
+    });
   }
 
   //to go to current location
@@ -309,8 +328,9 @@ class _DashboardPageState extends State<DashboardPage> {
           SafeArea(
             child: _TopBar(
               name: widget.name,
-              zone: currentCity,
+              currentCity: currentCity,
               profileImage: dashboardProfileImage,
+              profileImageUrl: dashboardProfileImageUrl,
               onProfileTap: _openProfile,
               onNotificationTap: _openNotifications,
             ),
@@ -326,47 +346,76 @@ class _DashboardPageState extends State<DashboardPage> {
                   color: Color.fromARGB(255, 38, 38, 60),
                   borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
                 ),
-                child: SingleChildScrollView(
-                  controller: scrollController,
-                  padding: EdgeInsets.fromLTRB(
-                    20,
-                    20,
-                    20,
-                    MediaQuery.of(context).viewInsets.bottom + 80,
-                  ),
-                  child: isDriver
-                      ? _DriverSection(name: widget.name)
-                      : _PassengerSection(
-                          name: widget.name,
-                          pickupController: pickupController,
-                          dropoffController: dropoffController,
-                          pickupType: pickupType,
-                          selectedMeetingPoint: selectedMeetingPoint,
-                          meetingPoints: meetingPoints,
-                          onPickupTypeChanged: (value) {
-                            setState(() => pickupType = value);
-                          },
-                          onMeetingPointChanged: (value) {
-                            setState(() => selectedMeetingPoint = value);
-                          },
-                          selectedFavoriteAddress: selectedFavoriteAddress,
-                          favoriteLabelController: favoriteLabelController,
-                          saveDestinationAsFavorite: saveDestinationAsFavorite,
-                          onFavoriteSelected: (value) {
-                            setState(() => selectedFavoriteAddress = value);
-                          },
-                          onSaveFavoriteChanged: (value) {
-                            setState(() {
-                              saveDestinationAsFavorite = value ?? false;
-                            });
-                          },
-                          onSubmit: submitRideRequest,
-                          activeAddressField: activeAddressField,
-                          onActiveAddressFieldChanged: (value) {
-                            setState(() => activeAddressField = value);
-                          },
-                          getAddressSuggestions: getAddressSuggestions,
+                child: Column(
+                  children: [
+                    SizedBox(height: 5),
+                    Center(
+                      child: Container(
+                        width: 50,
+                        height: 5,
+                        margin: const EdgeInsets.only(top: 10, bottom: 8),
+                        decoration: BoxDecoration(
+                          color: Colors.white38,
+                          borderRadius: BorderRadius.circular(20),
                         ),
+                      ),
+                    ),
+
+                    Expanded(
+                      child: AnimatedPadding(
+                        duration: const Duration(milliseconds: 250),
+                        curve: Curves.easeOut,
+                        padding: EdgeInsets.only(
+                          bottom: MediaQuery.of(context).viewInsets.bottom,
+                        ),
+                        child: SingleChildScrollView(
+                          controller: scrollController,
+                          padding: const EdgeInsets.fromLTRB(20, 10, 20, 100),
+                          child: isDriver
+                              ? _DriverSection(name: widget.name)
+                              : _PassengerSection(
+                                  name: widget.name,
+                                  pickupController: pickupController,
+                                  dropoffController: dropoffController,
+                                  pickupType: pickupType,
+                                  selectedMeetingPoint: selectedMeetingPoint,
+                                  meetingPoints: meetingPoints,
+                                  onPickupTypeChanged: (value) {
+                                    setState(() => pickupType = value);
+                                  },
+                                  onMeetingPointChanged: (value) {
+                                    setState(
+                                      () => selectedMeetingPoint = value,
+                                    );
+                                  },
+                                  selectedFavoriteAddress:
+                                      selectedFavoriteAddress,
+                                  favoriteLabelController:
+                                      favoriteLabelController,
+                                  saveDestinationAsFavorite:
+                                      saveDestinationAsFavorite,
+                                  onFavoriteSelected: (value) {
+                                    setState(
+                                      () => selectedFavoriteAddress = value,
+                                    );
+                                  },
+                                  onSaveFavoriteChanged: (value) {
+                                    setState(() {
+                                      saveDestinationAsFavorite =
+                                          value ?? false;
+                                    });
+                                  },
+                                  onSubmit: submitRideRequest,
+                                  activeAddressField: activeAddressField,
+                                  onActiveAddressFieldChanged: (value) {
+                                    setState(() => activeAddressField = value);
+                                  },
+                                  getAddressSuggestions: getAddressSuggestions,
+                                ),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               );
             },
@@ -379,15 +428,17 @@ class _DashboardPageState extends State<DashboardPage> {
 
 class _TopBar extends StatelessWidget {
   final String name;
-  final String zone;
+  final String currentCity;
   final File? profileImage;
+  final String? profileImageUrl;
   final VoidCallback onProfileTap;
   final VoidCallback onNotificationTap;
 
   const _TopBar({
     required this.name,
-    required this.zone,
+    required this.currentCity,
     required this.profileImage,
+    this.profileImageUrl,
     required this.onProfileTap,
     required this.onNotificationTap,
   });
@@ -401,13 +452,22 @@ class _TopBar extends StatelessWidget {
           // PROFILE
           GestureDetector(
             onTap: onProfileTap,
+
             child: CircleAvatar(
               radius: 26,
               backgroundColor: Colors.white,
               backgroundImage: profileImage != null
                   ? FileImage(profileImage!)
+                  : (profileImageUrl != null &&
+                        profileImageUrl!.isNotEmpty &&
+                        profileImageUrl!.startsWith('https://'))
+                  ? NetworkImage(profileImageUrl!)
                   : null,
-              child: profileImage == null
+              child:
+                  profileImage == null &&
+                      (profileImageUrl == null ||
+                          profileImageUrl!.isEmpty ||
+                          !profileImageUrl!.startsWith('http'))
                   ? const Icon(
                       CupertinoIcons.person_fill,
                       color: Color.fromARGB(255, 38, 38, 60),
@@ -432,7 +492,7 @@ class _TopBar extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   const Text(
-                    'Position Actuelle',
+                    'Tu es actuellement à :',
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       color: Colors.black,
@@ -444,7 +504,7 @@ class _TopBar extends StatelessWidget {
                   const SizedBox(width: 5),
                   Flexible(
                     child: Text(
-                      zone,
+                      currentCity,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
@@ -462,22 +522,63 @@ class _TopBar extends StatelessWidget {
           const SizedBox(width: 14),
 
           // NOTIFICATION
-          GestureDetector(
-            onTap: onNotificationTap,
-            child: Container(
-              width: 52,
-              height: 52,
-              decoration: BoxDecoration(
-                color: Colors.black.withValues(alpha: 0.28),
-                shape: BoxShape.circle,
-                border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
-              ),
-              child: const Icon(
-                CupertinoIcons.bell,
-                color: Colors.white,
-                size: 20,
-              ),
-            ),
+          StreamBuilder<QuerySnapshot>(
+            stream: FirebaseFirestore.instance
+                .collection('notifications')
+                .where(
+                  'userId',
+                  isEqualTo: FirebaseAuth.instance.currentUser!.uid,
+                )
+                .where('read', isEqualTo: false)
+                .snapshots(),
+            builder: (context, snapshot) {
+              final count = snapshot.data?.docs.length ?? 0;
+
+              return GestureDetector(
+                onTap: onNotificationTap,
+                child: Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    Container(
+                      width: 52,
+                      height: 52,
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.28),
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: Colors.white.withValues(alpha: 0.08),
+                        ),
+                      ),
+                      child: const Icon(
+                        CupertinoIcons.bell,
+                        color: Colors.white,
+                        size: 20,
+                      ),
+                    ),
+                    if (count > 0)
+                      Positioned(
+                        right: -2,
+                        top: -2,
+                        child: Container(
+                          padding: const EdgeInsets.all(5),
+                          decoration: const BoxDecoration(
+                            color: Colors.red,
+                            shape: BoxShape.circle,
+                          ),
+                          child: Text(
+                            count > 9 ? '9+' : '$count',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              );
+            },
           ),
         ],
       ),
@@ -872,23 +973,32 @@ class _PassengerSection extends StatelessWidget {
 
               const SizedBox(height: 6),
 
-              const SizedBox(height: 6),
-
               Align(
                 alignment: Alignment.centerRight,
                 child: Tooltip(
                   message: 'Enregistrer comme favori',
-                  child: Checkbox(
-                    value: false,
-                    onChanged: (_) {
+                  child: GestureDetector(
+                    onTap: () {
                       _showFavoriteDialog(
                         context: context,
                         favoriteLabelController: favoriteLabelController,
                         dropoffController: dropoffController,
                       );
                     },
-                    activeColor: Colors.green,
-                    side: const BorderSide(color: Colors.white54),
+                    child: Container(
+                      width: 42,
+                      height: 42,
+                      decoration: BoxDecoration(
+                        color: const Color.fromARGB(255, 28, 28, 47),
+                        shape: BoxShape.circle,
+                        border: Border.all(color: Colors.white24),
+                      ),
+                      child: const Icon(
+                        CupertinoIcons.heart_fill,
+                        color: Colors.green,
+                        size: 20,
+                      ),
+                    ),
                   ),
                 ),
               ),
@@ -903,7 +1013,7 @@ class _PassengerSection extends StatelessWidget {
                 onFavoriteSelected: onFavoriteSelected,
               ),
 
-              const SizedBox(height: 24),
+              const SizedBox(height: 10),
 
               SizedBox(
                 width: double.infinity,
@@ -1105,10 +1215,16 @@ class _FavoriteAddressButtons extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final user = FirebaseAuth.instance.currentUser;
+
+    if (user == null) {
+      return const SizedBox.shrink();
+    }
+
     return StreamBuilder<QuerySnapshot>(
       stream: FirebaseFirestore.instance
           .collection('users')
-          .doc(FirebaseAuth.instance.currentUser!.uid)
+          .doc(user.uid)
           .collection('favorite_addresses')
           .snapshots(),
       builder: (context, snapshot) {

@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:ejp_ride_version/pages/login.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:image_cropper/image_cropper.dart';
@@ -16,6 +17,7 @@ class UserProfilePage extends StatefulWidget {
   final String phone;
 
   final File? profileImage;
+  final String? profileImageUrl;
 
   const UserProfilePage({
     super.key,
@@ -25,6 +27,7 @@ class UserProfilePage extends StatefulWidget {
     required this.role,
     required this.phone,
     this.profileImage,
+    this.profileImageUrl,
   });
 
   @override
@@ -71,8 +74,7 @@ class _UserProfilePageState extends State<UserProfilePage> {
     });
   }
 
-  // picking and cropping image for profile picture
-
+  // Sélection et recadrage de la photo de profil
   Future<void> pickAndCropImage() async {
     final XFile? pickedImage = await picker.pickImage(
       source: ImageSource.gallery,
@@ -85,7 +87,7 @@ class _UserProfilePageState extends State<UserProfilePage> {
       sourcePath: pickedImage.path,
       aspectRatio: const CropAspectRatio(ratioX: 1, ratioY: 1),
       uiSettings: [
-        IOSUiSettings(title: 'Crop Profile Picture'),
+        IOSUiSettings(title: 'Rogner la photo de profil'),
         AndroidUiSettings(
           toolbarTitle: 'Rogner la photo de profil',
           lockAspectRatio: true,
@@ -94,22 +96,29 @@ class _UserProfilePageState extends State<UserProfilePage> {
     );
 
     if (croppedImage != null) {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return;
+
       final newImage = File(croppedImage.path);
 
       setState(() {
         profileImage = newImage;
       });
 
-      await updateUserField('profileImagePath', croppedImage.path);
+      final ref = FirebaseStorage.instance
+          .ref()
+          .child('profile_images')
+          .child('${user.uid}.jpg');
 
-      setState(() {
-        profileImage = newImage;
-      });
+      final uploadTask = await ref.putFile(newImage);
+
+      final imageUrl = await uploadTask.ref.getDownloadURL();
+
+      await updateUserField('profileImageUrl', imageUrl);
     }
   }
 
-  //editting user name
-
+  // Modifier le nom
   void editName() {
     final nameController = TextEditingController(text: name);
 
@@ -172,8 +181,7 @@ class _UserProfilePageState extends State<UserProfilePage> {
     );
   }
 
-  //editting phone name
-
+  // Modifier le téléphone
   void editPhone() {
     final phoneController = TextEditingController(text: phone);
 
@@ -183,7 +191,7 @@ class _UserProfilePageState extends State<UserProfilePage> {
         return AlertDialog(
           backgroundColor: const Color.fromARGB(255, 38, 38, 60),
           title: const Text(
-            'Modifier mon numéro de téléphone ',
+            'Modifier mon numéro de téléphone',
             style: TextStyle(color: Colors.white, fontSize: 16),
           ),
           content: TextField(
@@ -237,7 +245,7 @@ class _UserProfilePageState extends State<UserProfilePage> {
     );
   }
 
-  //editting zone
+  // Modifier la zone
   void editZone() {
     String selectedZone = zone;
 
@@ -302,7 +310,7 @@ class _UserProfilePageState extends State<UserProfilePage> {
     );
   }
 
-  //logout function
+  // Déconnexion
   Future<void> logout(BuildContext context) async {
     await FirebaseAuth.instance.signOut();
 
@@ -315,25 +323,51 @@ class _UserProfilePageState extends State<UserProfilePage> {
     }
   }
 
-  //deleting account
+  // Suppression du compte
   Future<void> deleteAccount(BuildContext context) async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
 
-    await FirebaseFirestore.instance.collection('users').doc(user.uid).delete();
+    try {
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .delete();
 
-    await user.delete();
+      await FirebaseStorage.instance
+          .ref()
+          .child('profile_images')
+          .child('${user.uid}.jpg')
+          .delete()
+          .catchError((_) {});
 
-    if (context.mounted) {
+      await user.delete();
+
+      if (!context.mounted) return;
+
       Navigator.pushAndRemoveUntil(
         context,
         MaterialPageRoute(builder: (context) => const LoginPage()),
         (route) => false,
       );
+    } on FirebaseAuthException catch (e) {
+      if (e.code == 'requires-recent-login') {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Veuillez vous reconnecter avant de supprimer le compte.',
+            ),
+          ),
+        );
+      } else {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Erreur: ${e.message}')));
+      }
     }
   }
 
-  //confirm deleting account pop up
+  // Confirmation de suppression du compte
   void confirmDeleteAccount() {
     showDialog(
       context: context,
@@ -341,24 +375,27 @@ class _UserProfilePageState extends State<UserProfilePage> {
         return AlertDialog(
           backgroundColor: const Color.fromARGB(255, 38, 38, 60),
           title: const Text(
-            'Delete Account?',
+            'Supprimer le compte ?',
             style: TextStyle(color: Colors.white, fontSize: 16),
           ),
           content: const Text(
-            'This action cannot be undone.',
+            'Cette action est irréversible.',
             style: TextStyle(color: Colors.white70),
           ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
               child: const Text(
-                'Cancel',
+                'Annuler',
                 style: TextStyle(color: Colors.white70),
               ),
             ),
             TextButton(
               onPressed: () => deleteAccount(context),
-              child: const Text('Delete', style: TextStyle(color: Colors.red)),
+              child: const Text(
+                'Supprimer',
+                style: TextStyle(color: Colors.red),
+              ),
             ),
           ],
         );
@@ -376,16 +413,14 @@ class _UserProfilePageState extends State<UserProfilePage> {
         backgroundColor: const Color.fromARGB(255, 28, 28, 47),
         elevation: 0,
         iconTheme: const IconThemeData(color: Colors.white),
-
         leading: IconButton(
           icon: const Icon(CupertinoIcons.back),
           onPressed: () {
             Navigator.pop(context, profileImage);
           },
         ),
-
         title: const Text(
-          'Mon Profil',
+          'Mon profil',
           style: TextStyle(color: Colors.white, fontSize: 18),
         ),
       ),
@@ -408,8 +443,16 @@ class _UserProfilePageState extends State<UserProfilePage> {
                   backgroundColor: Colors.white,
                   backgroundImage: profileImage != null
                       ? FileImage(profileImage!)
+                      : (widget.profileImageUrl != null &&
+                            widget.profileImageUrl!.isNotEmpty &&
+                            widget.profileImageUrl!.startsWith('https://'))
+                      ? NetworkImage(widget.profileImageUrl!)
                       : null,
-                  child: profileImage == null
+                  child:
+                      profileImage == null &&
+                          (widget.profileImageUrl == null ||
+                              widget.profileImageUrl!.isEmpty ||
+                              !widget.profileImageUrl!.startsWith('https://'))
                       ? const Icon(
                           CupertinoIcons.person_fill,
                           size: 50,
@@ -424,7 +467,7 @@ class _UserProfilePageState extends State<UserProfilePage> {
               TextButton(
                 onPressed: pickAndCropImage,
                 child: const Text(
-                  'Changer ma de photo de profile',
+                  'Changer ma photo de profil',
                   style: TextStyle(color: Colors.green, fontSize: 13),
                 ),
               ),
@@ -443,7 +486,7 @@ class _UserProfilePageState extends State<UserProfilePage> {
               const SizedBox(height: 6),
 
               Text(
-                role.toUpperCase(),
+                role == 'driver' ? 'CONDUCTEUR' : 'PASSAGER',
                 style: const TextStyle(color: Colors.white60, fontSize: 13),
               ),
 
@@ -458,11 +501,45 @@ class _UserProfilePageState extends State<UserProfilePage> {
 
               const SizedBox(height: 14),
 
-              _ProfileTile(
-                icon: CupertinoIcons.mail_solid,
-                title: 'Courriel',
-                value: email,
-                onTap: () {},
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: const Color.fromARGB(255, 38, 38, 60),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Row(
+                  children: [
+                    Icon(CupertinoIcons.mail_solid, color: Colors.green),
+
+                    const SizedBox(width: 14),
+
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            "Courriel",
+                            style: const TextStyle(
+                              color: Colors.white54,
+                              fontSize: 12,
+                            ),
+                          ),
+
+                          const SizedBox(height: 3),
+
+                          Text(
+                            widget.email,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 15,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
               ),
 
               const SizedBox(height: 14),
@@ -546,7 +623,9 @@ class _ProfileTile extends StatelessWidget {
         child: Row(
           children: [
             Icon(icon, color: Colors.green),
+
             const SizedBox(width: 14),
+
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -555,7 +634,9 @@ class _ProfileTile extends StatelessWidget {
                     title,
                     style: const TextStyle(color: Colors.white54, fontSize: 12),
                   ),
+
                   const SizedBox(height: 3),
+
                   Text(
                     value,
                     style: const TextStyle(
@@ -567,6 +648,7 @@ class _ProfileTile extends StatelessWidget {
                 ],
               ),
             ),
+
             const Icon(CupertinoIcons.pencil, color: Colors.white38, size: 18),
           ],
         ),

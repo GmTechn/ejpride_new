@@ -1,3 +1,5 @@
+// ignore_for_file: deprecated_member_use
+
 import 'package:ejp_ride_version/elements/mytextfield.dart';
 import 'package:ejp_ride_version/firebase/firebase.dart';
 import 'package:ejp_ride_version/pages/rolepage.dart';
@@ -22,15 +24,18 @@ class _SignUpPageState extends State<SignUpPage> {
   final AuthService _authService = AuthService();
 
   bool isLoading = false;
+  bool showPassword = false;
+  bool showconfirmPassword = false;
 
   Future<void> signUp() async {
     if (_formKey.currentState!.validate()) {
       if (passwordController.text.trim() !=
           confirmPasswordController.text.trim()) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text("Passwords do not match")));
-
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Les mots de passe ne correspondent pas.'),
+          ),
+        );
         return;
       }
 
@@ -51,9 +56,13 @@ class _SignUpPageState extends State<SignUpPage> {
           MaterialPageRoute(builder: (context) => const RolePage()),
         );
       } catch (e) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(e.toString())));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Une erreur est survenue lors de la création du compte.',
+            ),
+          ),
+        );
       }
 
       setState(() {
@@ -65,6 +74,7 @@ class _SignUpPageState extends State<SignUpPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      resizeToAvoidBottomInset: false,
       backgroundColor: const Color.fromARGB(255, 28, 28, 47),
       body: SafeArea(
         child: Center(
@@ -75,7 +85,7 @@ class _SignUpPageState extends State<SignUpPage> {
               child: Column(
                 children: [
                   Text(
-                    'Ejp Ride',
+                    'EJP Ride',
                     style: GoogleFonts.playfairDisplay(
                       color: Colors.white,
                       fontSize: 38,
@@ -88,7 +98,6 @@ class _SignUpPageState extends State<SignUpPage> {
                   Container(
                     padding: const EdgeInsets.all(20),
                     decoration: BoxDecoration(
-                      // ignore: deprecated_member_use
                       color: Colors.green.withOpacity(0.15),
                       shape: BoxShape.circle,
                     ),
@@ -102,7 +111,7 @@ class _SignUpPageState extends State<SignUpPage> {
                   const SizedBox(height: 20),
 
                   const Text(
-                    'Create Account',
+                    'Créer un compte',
                     style: TextStyle(
                       color: Colors.white,
                       fontSize: 18,
@@ -114,16 +123,16 @@ class _SignUpPageState extends State<SignUpPage> {
 
                   MyTextFormField(
                     controller: emailController,
-                    labelText: 'Email',
-                    hintText: 'Enter your email',
+                    labelText: 'Courriel',
+                    hintText: 'Entrez votre courriel',
                     keyboardType: TextInputType.emailAddress,
                     validator: (value) {
                       if (value == null || value.isEmpty) {
-                        return 'Email is required';
+                        return 'Le courriel est requis.';
                       }
 
                       if (!value.contains('@')) {
-                        return 'Enter a valid email';
+                        return 'Veuillez entrer un courriel valide.';
                       }
 
                       return null;
@@ -134,16 +143,29 @@ class _SignUpPageState extends State<SignUpPage> {
 
                   MyTextFormField(
                     controller: passwordController,
-                    labelText: 'Password',
-                    hintText: 'Create a password',
-                    obscureText: true,
+                    labelText: 'Mot de passe',
+                    hintText: 'Saisissez votre mot de passe',
+                    obscureText: !showPassword,
+                    suffixIcon: IconButton(
+                      icon: Icon(
+                        showPassword
+                            ? CupertinoIcons.eye_slash_fill
+                            : CupertinoIcons.eye_fill,
+                        color: Colors.white70,
+                      ),
+                      onPressed: () {
+                        setState(() {
+                          showPassword = !showPassword;
+                        });
+                      },
+                    ),
                     validator: (value) {
                       if (value == null || value.isEmpty) {
-                        return 'Password is required';
+                        return 'Le mot de passe est requis.';
                       }
 
                       if (value.length < 6) {
-                        return 'Password must be at least 6 characters';
+                        return 'Le mot de passe doit comporter au moins 6 caractères.';
                       }
 
                       return null;
@@ -154,12 +176,29 @@ class _SignUpPageState extends State<SignUpPage> {
 
                   MyTextFormField(
                     controller: confirmPasswordController,
-                    labelText: 'Confirm Password',
-                    hintText: 'Confirm your password',
-                    obscureText: true,
+                    labelText: 'Confirmation du mot de passe',
+                    hintText: 'Confirmez votre mot de passe',
+                    obscureText: !showconfirmPassword,
+                    suffixIcon: IconButton(
+                      icon: Icon(
+                        showconfirmPassword
+                            ? CupertinoIcons.eye_slash_fill
+                            : CupertinoIcons.eye_fill,
+                        color: Colors.white70,
+                      ),
+                      onPressed: () {
+                        setState(() {
+                          showconfirmPassword = !showconfirmPassword;
+                        });
+                      },
+                    ),
                     validator: (value) {
                       if (value == null || value.isEmpty) {
-                        return 'Please confirm your password';
+                        return 'Veuillez confirmer votre mot de passe.';
+                      }
+
+                      if (value != passwordController.text) {
+                        return 'Les mots de passe ne correspondent pas.';
                       }
 
                       return null;
@@ -182,7 +221,7 @@ class _SignUpPageState extends State<SignUpPage> {
                       child: isLoading
                           ? const CircularProgressIndicator(color: Colors.white)
                           : const Text(
-                              'Create Account',
+                              'Créer un compte',
                               style: TextStyle(
                                 color: Colors.white,
                                 fontSize: 17,
@@ -198,7 +237,7 @@ class _SignUpPageState extends State<SignUpPage> {
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       const Text(
-                        'Already have an account? ',
+                        'Vous avez déjà un compte ? ',
                         style: TextStyle(color: Colors.white70),
                       ),
 
@@ -207,7 +246,7 @@ class _SignUpPageState extends State<SignUpPage> {
                           Navigator.pop(context);
                         },
                         child: const Text(
-                          'Login',
+                          'Connexion',
                           style: TextStyle(
                             color: Colors.green,
                             fontWeight: FontWeight.bold,

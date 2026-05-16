@@ -14,12 +14,11 @@ class _DriverProfilePageState extends State<DriverProfilePage> {
   String? selectedSector;
 
   final List<String> sectors = [
-    'East',
-    'West',
-    'South',
-    'Downtown',
-    'Orleans',
-    'Gatineau',
+    'Hull',
+    'Plateau / Aylmer',
+    'Ottawa Est',
+    'Orléans',
+    'Gatineau - Gatineau',
   ];
 
   @override
@@ -31,7 +30,7 @@ class _DriverProfilePageState extends State<DriverProfilePage> {
         elevation: 0,
         iconTheme: const IconThemeData(color: Colors.white),
         title: const Text(
-          'Driver Profile',
+          'Profil conducteur',
           style: TextStyle(color: Colors.white),
         ),
       ),
@@ -43,7 +42,7 @@ class _DriverProfilePageState extends State<DriverProfilePage> {
             child: Column(
               children: [
                 const Text(
-                  'Tell us about your car',
+                  'Parlez-nous de votre véhicule',
                   style: TextStyle(
                     color: Colors.white,
                     fontSize: 24,
@@ -54,7 +53,7 @@ class _DriverProfilePageState extends State<DriverProfilePage> {
                 const SizedBox(height: 8),
 
                 const Text(
-                  'This helps admins assign passengers properly.',
+                  'Ces informations permettent aux administrateurs d’affecter correctement les passagers.',
                   textAlign: TextAlign.center,
                   style: TextStyle(color: Colors.white60, fontSize: 14),
                 ),
@@ -62,11 +61,11 @@ class _DriverProfilePageState extends State<DriverProfilePage> {
                 const SizedBox(height: 30),
 
                 MyTextFormField(
-                  labelText: 'Car Model',
-                  hintText: 'Example: Toyota Corolla',
+                  labelText: 'Modèle du véhicule',
+                  hintText: 'Exemple : Toyota Corolla',
                   validator: (value) {
                     if (value == null || value.isEmpty) {
-                      return 'Car model is required';
+                      return 'Le modèle du véhicule est requis.';
                     }
                     return null;
                   },
@@ -75,11 +74,11 @@ class _DriverProfilePageState extends State<DriverProfilePage> {
                 const SizedBox(height: 16),
 
                 MyTextFormField(
-                  labelText: 'Car Color',
-                  hintText: 'Example: Black',
+                  labelText: 'Couleur du véhicule',
+                  hintText: 'Exemple : Noir',
                   validator: (value) {
                     if (value == null || value.isEmpty) {
-                      return 'Car color is required';
+                      return 'La couleur du véhicule est requise.';
                     }
                     return null;
                   },
@@ -88,25 +87,11 @@ class _DriverProfilePageState extends State<DriverProfilePage> {
                 const SizedBox(height: 16),
 
                 MyTextFormField(
-                  labelText: 'Plate Number',
-                  hintText: 'Example: ABCD 123',
+                  labelText: 'Numéro de plaque',
+                  hintText: 'Exemple : ABCD 123',
                   validator: (value) {
                     if (value == null || value.isEmpty) {
-                      return 'Plate number is required';
-                    }
-                    return null;
-                  },
-                ),
-
-                const SizedBox(height: 16),
-
-                MyTextFormField(
-                  labelText: 'Number of Seats',
-                  hintText: 'Example: 4',
-                  keyboardType: TextInputType.number,
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return 'Number of seats is required';
+                      return 'Le numéro d’immatriculation est requis.';
                     }
                     return null;
                   },
@@ -119,7 +104,7 @@ class _DriverProfilePageState extends State<DriverProfilePage> {
                   dropdownColor: const Color.fromARGB(255, 38, 38, 60),
                   style: const TextStyle(color: Colors.white),
                   decoration: InputDecoration(
-                    labelText: 'Main Sector',
+                    labelText: 'Secteur',
                     labelStyle: const TextStyle(color: Colors.white70),
                     filled: true,
                     fillColor: const Color.fromARGB(255, 38, 38, 60),
@@ -152,7 +137,7 @@ class _DriverProfilePageState extends State<DriverProfilePage> {
                   },
                   validator: (value) {
                     if (value == null) {
-                      return 'Please select your sector';
+                      return 'Veuillez sélectionner votre secteur.';
                     }
                     return null;
                   },
@@ -172,12 +157,12 @@ class _DriverProfilePageState extends State<DriverProfilePage> {
                     ),
                     onPressed: () {
                       if (_formKey.currentState!.validate()) {
-                        // Later: save driver profile in Firebase
-                        // Navigate to Driver Dashboard
+                        // Plus tard : sauvegarder le profil conducteur dans Firebase
+                        // Naviguer vers le tableau de bord conducteur
                       }
                     },
                     child: const Text(
-                      'Complete Profile',
+                      'Compléter le profil',
                       style: TextStyle(
                         color: Colors.white,
                         fontSize: 17,

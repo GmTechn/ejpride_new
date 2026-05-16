@@ -50,14 +50,13 @@ class NotificationsPage extends StatelessWidget {
                   padding: const EdgeInsets.all(18),
                   itemCount: notifications.length,
                   separatorBuilder: (_, _) =>
-                      const Divider(color: Colors.white12, height: 22),
+                      const Divider(color: Colors.white12),
                   itemBuilder: (context, index) {
                     final doc = notifications[index];
                     final data = doc.data() as Map<String, dynamic>;
                     final read = data['read'] == true;
 
                     return ListTile(
-                      contentPadding: EdgeInsets.zero,
                       leading: Icon(
                         read ? CupertinoIcons.bell : CupertinoIcons.bell_fill,
                         color: read ? Colors.white38 : Colors.green,

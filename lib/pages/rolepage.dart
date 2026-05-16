@@ -9,19 +9,16 @@ class RolePage extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color.fromARGB(255, 28, 28, 47),
-
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 20),
-
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
-
             children: [
               const SizedBox(height: 60),
 
               const Text(
-                'Choose your role',
+                'Choisissez votre rôle',
                 style: TextStyle(
                   color: Colors.white,
                   fontSize: 18,
@@ -32,7 +29,7 @@ class RolePage extends StatelessWidget {
               const SizedBox(height: 10),
 
               const Text(
-                'How will you use Ejp Ride?',
+                'Comment utiliserez-vous EJP Ride ?',
                 style: TextStyle(color: Colors.white60, fontSize: 13),
               ),
 
@@ -40,8 +37,7 @@ class RolePage extends StatelessWidget {
 
               _RoleTile(
                 icon: CupertinoIcons.person_fill,
-                title: 'Passenger',
-
+                title: 'Passager',
                 onTap: () {
                   Navigator.push(
                     context,
@@ -57,8 +53,7 @@ class RolePage extends StatelessWidget {
 
               _RoleTile(
                 icon: CupertinoIcons.car_detailed,
-                title: 'Driver',
-
+                title: 'Conducteur',
                 onTap: () {
                   Navigator.push(
                     context,
@@ -92,26 +87,21 @@ class _RoleTile extends StatelessWidget {
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: onTap,
-
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 14),
-
         decoration: BoxDecoration(
           color: const Color.fromARGB(255, 38, 38, 60),
           borderRadius: BorderRadius.circular(14),
         ),
-
         child: Row(
           children: [
             Container(
               padding: const EdgeInsets.all(10),
-
               decoration: BoxDecoration(
                 // ignore: deprecated_member_use
                 color: Colors.green.withOpacity(0.15),
                 shape: BoxShape.circle,
               ),
-
               child: Icon(icon, color: Colors.green, size: 22),
             ),
 

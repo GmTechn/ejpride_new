@@ -8,6 +8,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:image_cropper/image_cropper.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 
 class ProfileSetUpPage extends StatefulWidget {
   final String role;
@@ -20,18 +21,14 @@ class ProfileSetUpPage extends StatefulWidget {
 
 class _ProfileSetUpPageState extends State<ProfileSetUpPage> {
   final _formKey = GlobalKey<FormState>();
-
   final ImagePicker _picker = ImagePicker();
 
   File? _profileImage;
-
   String? selectedZone;
-
   bool isLoading = false;
 
   final fullNameController = TextEditingController();
   final phoneController = TextEditingController();
-
   final carModelController = TextEditingController();
   final carColorController = TextEditingController();
   final plateNumberController = TextEditingController();
@@ -58,9 +55,9 @@ class _ProfileSetUpPageState extends State<ProfileSetUpPage> {
       sourcePath: pickedImage.path,
       aspectRatio: const CropAspectRatio(ratioX: 1, ratioY: 1),
       uiSettings: [
-        IOSUiSettings(title: 'Crop Profile Picture'),
+        IOSUiSettings(title: 'Rogner la photo de profil'),
         AndroidUiSettings(
-          toolbarTitle: 'Crop Profile Picture',
+          toolbarTitle: 'Rogner la photo de profil',
           lockAspectRatio: true,
         ),
       ],
@@ -93,12 +90,11 @@ class _ProfileSetUpPageState extends State<ProfileSetUpPage> {
                     color: Colors.green,
                   ),
                   title: const Text(
-                    'Choose from Gallery',
+                    'Choisir depuis la galerie',
                     style: TextStyle(color: Colors.white),
                   ),
                   onTap: () {
                     Navigator.pop(context);
-
                     _pickImage(ImageSource.gallery);
                   },
                 ),
@@ -109,12 +105,11 @@ class _ProfileSetUpPageState extends State<ProfileSetUpPage> {
                     color: Colors.green,
                   ),
                   title: const Text(
-                    'Take a Photo',
+                    'Prendre une photo',
                     style: TextStyle(color: Colors.white),
                   ),
                   onTap: () {
                     Navigator.pop(context);
-
                     _pickImage(ImageSource.camera);
                   },
                 ),
@@ -133,9 +128,10 @@ class _ProfileSetUpPageState extends State<ProfileSetUpPage> {
 
     if (user == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No user found. Please login again.')),
+        const SnackBar(
+          content: Text('Aucun utilisateur trouvé. Veuillez vous reconnecter.'),
+        ),
       );
-
       return;
     }
 
@@ -143,89 +139,109 @@ class _ProfileSetUpPageState extends State<ProfileSetUpPage> {
       isLoading = true;
     });
 
-    final profileData = {
-      'uid': user.uid,
-      'email': user.email,
-      'role': widget.role,
-      'fullName': fullNameController.text.trim(),
-      'phone': phoneController.text.trim(),
-      'zone': selectedZone,
-      'profileImagePath': _profileImage?.path,
-      'createdAt': FieldValue.serverTimestamp(),
-    };
+    String imageUrl = '';
 
-    if (isDriver) {
-      profileData.addAll({
-        'carModel': carModelController.text.trim(),
-        'carColor': carColorController.text.trim(),
-        'plateNumber': plateNumberController.text.trim(),
+    try {
+      if (_profileImage != null) {
+        final ref = FirebaseStorage.instance
+            .ref()
+            .child('profile_images')
+            .child('${user.uid}.jpg');
+
+        final uploadTask = await ref.putFile(_profileImage!);
+
+        imageUrl = await uploadTask.ref.getDownloadURL();
+
+        debugPrint('UPLOAD URL: $imageUrl');
+      }
+
+      final profileData = {
+        'uid': user.uid,
+        'email': user.email,
+        'role': widget.role,
+        'fullName': fullNameController.text.trim(),
+        'phone': phoneController.text.trim(),
+        'zone': selectedZone,
+        'profileImageUrl': imageUrl,
+        'createdAt': FieldValue.serverTimestamp(),
+      };
+
+      if (isDriver) {
+        profileData.addAll({
+          'carModel': carModelController.text.trim(),
+          'carColor': carColorController.text.trim(),
+          'plateNumber': plateNumberController.text.trim(),
+        });
+      }
+
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .set(profileData);
+
+      if (!mounted) return;
+
+      setState(() {
+        isLoading = false;
       });
-    }
 
-    await FirebaseFirestore.instance
-        .collection('users')
-        .doc(user.uid)
-        .set(profileData);
-
-    if (!mounted) return;
-
-    setState(() {
-      isLoading = false;
-    });
-
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(
-        builder: (context) => DashboardPage(
-          role: widget.role,
-          name: fullNameController.text.trim(),
-          email: user.email ?? '',
-          zone: selectedZone!,
-          phone: phoneController.text.trim(),
-          profileImage: _profileImage, // TEMPORAIRE pour éviter crash mémoire
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (context) => DashboardPage(
+            role: widget.role,
+            name: fullNameController.text.trim(),
+            email: user.email ?? '',
+            zone: selectedZone!,
+            phone: phoneController.text.trim(),
+            profileImage: _profileImage,
+            profileImageUrl: imageUrl,
+          ),
         ),
-      ),
-    );
+      );
+    } catch (e) {
+      debugPrint('SAVE PROFILE ERROR: $e');
+
+      setState(() {
+        isLoading = false;
+      });
+
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Erreur: $e')));
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    final title = isDriver ? 'Driver Profile' : 'Passenger Profile';
+    final title = isDriver ? 'Profil conducteur' : 'Profil passager';
 
     return Scaffold(
       backgroundColor: const Color.fromARGB(255, 28, 28, 47),
-
       appBar: AppBar(
         backgroundColor: const Color.fromARGB(255, 28, 28, 47),
         elevation: 0,
         iconTheme: const IconThemeData(color: Colors.white),
-
         title: Text(
           title,
           style: const TextStyle(color: Colors.white, fontSize: 18),
         ),
       ),
-
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-
           child: Form(
             key: _formKey,
-
             child: Column(
               children: [
                 GestureDetector(
                   onTap: _showImagePickerOptions,
-
                   child: CircleAvatar(
                     radius: 52,
                     backgroundColor: const Color.fromARGB(255, 38, 38, 60),
-
                     backgroundImage: _profileImage != null
                         ? FileImage(_profileImage!)
                         : null,
-
                     child: _profileImage == null
                         ? const Icon(
                             CupertinoIcons.camera,
@@ -240,9 +256,8 @@ class _ProfileSetUpPageState extends State<ProfileSetUpPage> {
 
                 TextButton(
                   onPressed: _showImagePickerOptions,
-
                   child: const Text(
-                    'Add profile picture',
+                    'Ajouter une photo de profil',
                     style: TextStyle(color: Colors.green, fontSize: 13),
                   ),
                 ),
@@ -251,14 +266,12 @@ class _ProfileSetUpPageState extends State<ProfileSetUpPage> {
 
                 MyTextFormField(
                   controller: fullNameController,
-                  labelText: 'Full Name',
-                  hintText: 'Enter your full name',
-
+                  labelText: 'Nom complet',
+                  hintText: 'Entrez votre nom complet',
                   validator: (value) {
                     if (value == null || value.isEmpty) {
-                      return 'Full name is required';
+                      return 'Le nom complet est requis.';
                     }
-
                     return null;
                   },
                 ),
@@ -267,15 +280,13 @@ class _ProfileSetUpPageState extends State<ProfileSetUpPage> {
 
                 MyTextFormField(
                   controller: phoneController,
-                  labelText: 'Phone Number',
-                  hintText: 'Enter your phone number',
+                  labelText: 'Numéro de téléphone',
+                  hintText: 'Entrez votre numéro de téléphone',
                   keyboardType: TextInputType.phone,
-
                   validator: (value) {
                     if (value == null || value.isEmpty) {
-                      return 'Phone number is required';
+                      return 'Le numéro de téléphone est requis.';
                     }
-
                     return null;
                   },
                 ),
@@ -285,7 +296,6 @@ class _ProfileSetUpPageState extends State<ProfileSetUpPage> {
                 _ZoneDropdown(
                   value: selectedZone,
                   zones: zones,
-
                   onChanged: (value) {
                     setState(() {
                       selectedZone = value;
@@ -298,14 +308,12 @@ class _ProfileSetUpPageState extends State<ProfileSetUpPage> {
 
                   MyTextFormField(
                     controller: carModelController,
-                    labelText: 'Car Make / Model',
-                    hintText: 'Example: Toyota Corolla',
-
+                    labelText: 'Marque / modèle du véhicule',
+                    hintText: 'Exemple : Toyota Corolla',
                     validator: (value) {
                       if (value == null || value.isEmpty) {
-                        return 'Car make/model is required';
+                        return 'Le modèle du véhicule est requis.';
                       }
-
                       return null;
                     },
                   ),
@@ -314,14 +322,12 @@ class _ProfileSetUpPageState extends State<ProfileSetUpPage> {
 
                   MyTextFormField(
                     controller: carColorController,
-                    labelText: 'Car Color',
-                    hintText: 'Example: Black',
-
+                    labelText: 'Couleur du véhicule',
+                    hintText: 'Exemple : Noir',
                     validator: (value) {
                       if (value == null || value.isEmpty) {
-                        return 'Car color is required';
+                        return 'La couleur du véhicule est requise.';
                       }
-
                       return null;
                     },
                   ),
@@ -330,14 +336,12 @@ class _ProfileSetUpPageState extends State<ProfileSetUpPage> {
 
                   MyTextFormField(
                     controller: plateNumberController,
-                    labelText: 'Plate Number',
-                    hintText: 'Example: ABCD 123',
-
+                    labelText: 'Numéro de plaque',
+                    hintText: 'Exemple : ABCD 123',
                     validator: (value) {
                       if (value == null || value.isEmpty) {
-                        return 'Plate number is required';
+                        return 'Le numéro de plaque est requis.';
                       }
-
                       return null;
                     },
                   ),
@@ -348,22 +352,18 @@ class _ProfileSetUpPageState extends State<ProfileSetUpPage> {
                 SizedBox(
                   width: double.infinity,
                   height: 52,
-
                   child: ElevatedButton(
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.green,
-
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(14),
                       ),
                     ),
-
                     onPressed: isLoading ? null : saveProfile,
-
                     child: isLoading
                         ? const CircularProgressIndicator(color: Colors.white)
                         : const Text(
-                            'Complete Profile',
+                            'Compléter le profil',
                             style: TextStyle(
                               color: Colors.white,
                               fontSize: 15,
@@ -396,55 +396,38 @@ class _ZoneDropdown extends StatelessWidget {
   Widget build(BuildContext context) {
     return DropdownButtonFormField<String>(
       initialValue: value,
-
       dropdownColor: const Color.fromARGB(255, 38, 38, 60),
-
       style: const TextStyle(color: Colors.white, fontSize: 14),
-
       decoration: InputDecoration(
         labelText: 'Zone',
-
         labelStyle: const TextStyle(color: Colors.white70),
-
         filled: true,
         fillColor: const Color.fromARGB(255, 38, 38, 60),
-
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
-
           borderSide: const BorderSide(color: Colors.white54, width: 1.4),
         ),
-
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
-
           borderSide: const BorderSide(color: Colors.green, width: 2),
         ),
-
         errorBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
-
           borderSide: const BorderSide(color: Colors.red, width: 2),
         ),
-
         focusedErrorBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
-
           borderSide: const BorderSide(color: Colors.red, width: 2),
         ),
       ),
-
       items: zones.map((zone) {
         return DropdownMenuItem(value: zone, child: Text(zone));
       }).toList(),
-
       onChanged: onChanged,
-
       validator: (value) {
         if (value == null || value.isEmpty) {
-          return 'Please select your zone';
+          return 'Veuillez sélectionner votre zone.';
         }
-
         return null;
       },
     );

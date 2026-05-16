@@ -1,3 +1,5 @@
+// ignore_for_file: use_build_context_synchronously
+
 import 'package:ejp_ride_version/elements/mytextfield.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -45,7 +47,7 @@ class _RequestRidePageState extends State<RequestRidePage> {
         elevation: 0,
         iconTheme: const IconThemeData(color: Colors.white),
         title: const Text(
-          'Request Ride',
+          'Demander un trajet',
           style: TextStyle(color: Colors.white, fontSize: 18),
         ),
       ),
@@ -59,7 +61,7 @@ class _RequestRidePageState extends State<RequestRidePage> {
                 const Align(
                   alignment: Alignment.centerLeft,
                   child: Text(
-                    'Ride information',
+                    'Informations sur le trajet',
                     style: TextStyle(
                       color: Colors.white,
                       fontSize: 18,
@@ -73,7 +75,7 @@ class _RequestRidePageState extends State<RequestRidePage> {
                 const Align(
                   alignment: Alignment.centerLeft,
                   child: Text(
-                    'Enter your address. Admin will assign the meeting point later.',
+                    'Entrez votre adresse. Le point de rencontre sera attribué ultérieurement.',
                     style: TextStyle(color: Colors.white60, fontSize: 13),
                   ),
                 ),
@@ -94,11 +96,11 @@ class _RequestRidePageState extends State<RequestRidePage> {
 
                 MyTextFormField(
                   controller: pickupController,
-                  labelText: 'Pickup Address',
-                  hintText: 'Enter your address',
+                  labelText: 'Adresse de départ',
+                  hintText: 'Entrez votre adresse',
                   validator: (value) {
                     if (value == null || value.isEmpty) {
-                      return 'Address is required';
+                      return 'L’adresse est requise.';
                     }
                     return null;
                   },
@@ -108,12 +110,12 @@ class _RequestRidePageState extends State<RequestRidePage> {
 
                 MyTextFormField(
                   controller: phoneController,
-                  labelText: 'Phone Number',
-                  hintText: 'Enter your phone number',
+                  labelText: 'Numéro de téléphone',
+                  hintText: 'Entrez votre numéro de téléphone',
                   keyboardType: TextInputType.phone,
                   validator: (value) {
                     if (value == null || value.isEmpty) {
-                      return 'Phone number is required';
+                      return 'Le numéro de téléphone est requis.';
                     }
                     return null;
                   },
@@ -122,8 +124,9 @@ class _RequestRidePageState extends State<RequestRidePage> {
                 const SizedBox(height: 14),
 
                 MyTextFormField(
+                  controller: notesController,
                   labelText: 'Notes',
-                  hintText: 'Optional notes',
+                  hintText: 'Notes optionnelles',
                   validator: null,
                 ),
 
@@ -170,20 +173,20 @@ class _RequestRidePageState extends State<RequestRidePage> {
                               isLoading = false;
                             });
 
-                            // ignore: use_build_context_synchronously
                             ScaffoldMessenger.of(context).showSnackBar(
                               const SnackBar(
-                                content: Text('Ride request submitted'),
+                                content: Text(
+                                  'Votre demande de trajet a été envoyée.',
+                                ),
                               ),
                             );
 
-                            // ignore: use_build_context_synchronously
                             Navigator.pop(context);
                           },
                     child: isLoading
                         ? const CircularProgressIndicator(color: Colors.white)
                         : const Text(
-                            'Submit Request',
+                            'Envoyer la demande',
                             style: TextStyle(
                               color: Colors.white,
                               fontSize: 15,
@@ -246,7 +249,7 @@ class _ZoneDropdown extends StatelessWidget {
       onChanged: onChanged,
       validator: (value) {
         if (value == null || value.isEmpty) {
-          return 'Please select your zone';
+          return 'Veuillez sélectionner votre zone.';
         }
         return null;
       },
