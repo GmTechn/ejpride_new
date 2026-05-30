@@ -5,6 +5,7 @@ import 'package:dio/dio.dart';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:ejp_ride_version/pages/notifications.dart';
+import 'package:ejp_ride_version/pages/notificationspage.dart';
 import 'package:ejp_ride_version/pages/profilepage.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/cupertino.dart';
@@ -105,6 +106,8 @@ class _DashboardPageState extends State<DashboardPage> {
     if (placemarks.isEmpty) return;
 
     final place = placemarks.first;
+
+    if (!mounted) return;
 
     setState(() {
       currentCity = place.locality?.isNotEmpty == true
@@ -1902,18 +1905,36 @@ class _AvailableRequestsList extends StatelessWidget {
                                 .instance
                                 .collection('users')
                                 .where('role', isEqualTo: 'driver')
+                                .where('isAvailable', isEqualTo: true)
                                 .get();
 
                             final totalDrivers = driversSnapshot.docs.length;
 
-                            if (declinedBy.length >= totalDrivers) {
+                            if (totalDrivers == 0 ||
+                                declinedBy.length >= totalDrivers) {
                               await rideRef.update({
                                 'declinedBy': declinedBy,
                                 'status': 'no_driver_found',
                                 'noDriverFoundAt': FieldValue.serverTimestamp(),
                               });
+
+                              await createNotification(
+                                userId: rideData['userId'],
+                                title: 'Aucun chauffeur disponible',
+                                message:
+                                    'Aucun chauffeur n’est disponible pour votre demande.',
+                                type: 'no_driver_found',
+                              );
                             } else {
                               await rideRef.update({'declinedBy': declinedBy});
+
+                              await createNotification(
+                                userId: rideData['userId'],
+                                title: 'Demande refusée',
+                                message:
+                                    'Un chauffeur a refusé votre demande. Nous cherchons un autre chauffeur.',
+                                type: 'ride_declined',
+                              );
                             }
                           },
                           child: const Text(

@@ -165,6 +165,9 @@ class _ProfileSetUpPageState extends State<ProfileSetUpPage> {
         'profileImageUrl': imageUrl,
         'createdAt': FieldValue.serverTimestamp(),
       };
+      if (widget.role == 'driver') {
+        profileData['isAvailable'] = true;
+      }
 
       if (isDriver) {
         profileData.addAll({

@@ -1,3 +1,5 @@
+// ignore_for_file: use_build_context_synchronously
+
 import 'dart:io';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -328,7 +330,66 @@ class _UserProfilePageState extends State<UserProfilePage> {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
 
+    final passwordController = TextEditingController();
+
+    final password = await showDialog<String>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          backgroundColor: const Color.fromARGB(255, 38, 38, 60),
+          title: const Text(
+            'Confirmez votre mot de passe',
+            style: TextStyle(color: Colors.white),
+          ),
+          content: TextField(
+            controller: passwordController,
+            obscureText: true,
+            style: const TextStyle(color: Colors.white),
+            decoration: InputDecoration(
+              hintText: 'Mot de passe',
+              hintStyle: const TextStyle(color: Colors.white54),
+              enabledBorder: OutlineInputBorder(
+                borderSide: const BorderSide(color: Colors.white38),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderSide: const BorderSide(color: Colors.green),
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text(
+                'Annuler',
+                style: TextStyle(color: Colors.white70),
+              ),
+            ),
+            TextButton(
+              onPressed: () {
+                Navigator.pop(context, passwordController.text.trim());
+              },
+              child: const Text(
+                'Confirmer',
+                style: TextStyle(color: Colors.red),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (password == null || password.isEmpty) return;
+
     try {
+      final credential = EmailAuthProvider.credential(
+        email: user.email!,
+        password: password,
+      );
+
+      await user.reauthenticateWithCredential(credential);
+
       await FirebaseFirestore.instance
           .collection('users')
           .doc(user.uid)
@@ -351,19 +412,13 @@ class _UserProfilePageState extends State<UserProfilePage> {
         (route) => false,
       );
     } on FirebaseAuthException catch (e) {
-      if (e.code == 'requires-recent-login') {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              'Veuillez vous reconnecter avant de supprimer le compte.',
-            ),
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            e.message ?? 'Erreur lors de la suppression du compte.',
           ),
-        );
-      } else {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Erreur: ${e.message}')));
-      }
+        ),
+      );
     }
   }
 
@@ -391,7 +446,10 @@ class _UserProfilePageState extends State<UserProfilePage> {
               ),
             ),
             TextButton(
-              onPressed: () => deleteAccount(context),
+              onPressed: () {
+                Navigator.pop(context);
+                deleteAccount(context);
+              },
               child: const Text(
                 'Supprimer',
                 style: TextStyle(color: Colors.red),
