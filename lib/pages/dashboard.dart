@@ -7,6 +7,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:ejp_ride_version/pages/notifications.dart';
 import 'package:ejp_ride_version/pages/notificationspage.dart';
 import 'package:ejp_ride_version/pages/profilepage.dart';
+import 'package:ejp_ride_version/pages/userprofiles.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
@@ -137,12 +138,21 @@ class _DashboardPageState extends State<DashboardPage> {
       return;
     }
 
+    final userDoc = await FirebaseFirestore.instance
+        .collection('users')
+        .doc(user.uid)
+        .get();
+
+    final userData = userDoc.data() ?? {};
+
     await FirebaseFirestore.instance.collection('ride_requests').add({
       'userId': user.uid,
-      'name': widget.name,
-      'email': widget.email,
-      'phone': widget.phone,
-      'zone': widget.zone,
+      'name': userData['fullName'] ?? widget.name,
+      'email': userData['email'] ?? widget.email,
+      'phone': userData['phone'] ?? widget.phone,
+      'zone': userData['zone'] ?? widget.zone,
+      'profileImageUrl':
+          userData['profileImageUrl'] ?? widget.profileImageUrl ?? '',
       'pickupType': pickupType,
       'meetingPoint': pickupType == 'meeting_point'
           ? selectedMeetingPoint
@@ -153,6 +163,13 @@ class _DashboardPageState extends State<DashboardPage> {
       'declinedBy': [],
       'createdAt': FieldValue.serverTimestamp(),
     });
+
+    await createNotification(
+      userId: user.uid,
+      title: 'Demande envoyée',
+      message: 'Votre demande de trajet a bien été envoyée.',
+      type: 'ride_request',
+    );
 
     if (saveDestinationAsFavorite && dropoffController.text.trim().isNotEmpty) {
       await FirebaseFirestore.instance
@@ -600,6 +617,8 @@ String _favoriteIconName(String label) {
   return 'other';
 }
 
+//passenger section
+
 class _PassengerSection extends StatelessWidget {
   final String name;
   final TextEditingController pickupController;
@@ -730,6 +749,7 @@ class _PassengerSection extends StatelessWidget {
               'driver_arrived',
               'picked_up',
               'no_driver_found',
+              'completed',
             ],
           )
           .snapshots(),
@@ -739,6 +759,50 @@ class _PassengerSection extends StatelessWidget {
         if (requests.isNotEmpty) {
           final data = requests.first.data() as Map<String, dynamic>;
           final status = data['status'] ?? 'waiting';
+
+          if (status == 'completed' && data['contributionPopupShown'] != true) {
+            Future.delayed(const Duration(milliseconds: 500), () async {
+              if (!context.mounted) return;
+
+              await FirebaseFirestore.instance
+                  .collection('ride_requests')
+                  .doc(requests.first.id)
+                  .update({'contributionPopupShown': true});
+
+              if (!context.mounted) return;
+
+              showDialog(
+                context: context,
+                builder: (context) {
+                  return AlertDialog(
+                    backgroundColor: const Color.fromARGB(255, 38, 38, 60),
+                    title: const Text(
+                      'Merci d’avoir utilisé EJP Ride 🚗',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    content: const Text(
+                      'Si vous souhaitez soutenir EJP Ride, vous pouvez effectuer un virement Interac à :\n\n'
+                      'finances.ejpelgo@gmail.com',
+                      style: TextStyle(color: Colors.white70, fontSize: 12),
+                    ),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(context),
+                        child: const Text(
+                          'Fermer',
+                          style: TextStyle(color: Colors.white70),
+                        ),
+                      ),
+                    ],
+                  );
+                },
+              );
+            });
+          }
 
           return _Panel(
             title: statusTitle(status),
@@ -763,6 +827,100 @@ class _PassengerSection extends StatelessWidget {
                   'Destination : ${data['dropoffAddress'] ?? ''}',
                   style: const TextStyle(color: Colors.white70),
                 ),
+                if (status == 'assigned' ||
+                    status == 'on_the_way' ||
+                    status == 'driver_arrived' ||
+                    status == 'picked_up' ||
+                    status == 'completed') ...[
+                  const SizedBox(height: 16),
+
+                  GestureDetector(
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => RideUserProfilePage(
+                            role: 'driver',
+                            name: data['driverName'] ?? '',
+                            phone: data['driverPhone'] ?? '',
+                            zone: data['driverZone'] ?? '',
+                            profileImageUrl:
+                                data['driverProfileImageUrl'] ?? '',
+                            carModel: data['driverCarModel'] ?? '',
+                            carColor: data['driverCarColor'] ?? '',
+                            plateNumber: data['driverPlateNumber'] ?? '',
+                          ),
+                        ),
+                      );
+                    },
+
+                    child: Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: Colors.green.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(
+                          color: Colors.green.withValues(alpha: 0.5),
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          CircleAvatar(
+                            radius: 22,
+                            backgroundColor: Colors.white,
+                            backgroundImage:
+                                (data['driverProfileImageUrl'] != null &&
+                                    data['driverProfileImageUrl']
+                                        .toString()
+                                        .startsWith('https://'))
+                                ? NetworkImage(data['driverProfileImageUrl'])
+                                : null,
+                            child:
+                                (data['driverProfileImageUrl'] == null ||
+                                    data['driverProfileImageUrl']
+                                        .toString()
+                                        .isEmpty)
+                                ? const Icon(
+                                    CupertinoIcons.person_fill,
+                                    color: Colors.green,
+                                  )
+                                : null,
+                          ),
+                          const SizedBox(width: 12),
+
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  data['driverName'] ?? 'Chauffeur',
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  data['driverPhone'] ?? '',
+                                  style: const TextStyle(
+                                    color: Colors.white70,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+
+                          const Icon(
+                            CupertinoIcons.chevron_right,
+                            color: Colors.white54,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
                 const SizedBox(height: 18),
                 if (status == 'no_driver_found')
                   SizedBox(
@@ -813,31 +971,42 @@ class _PassengerSection extends StatelessWidget {
                     height: 50,
                     child: OutlinedButton(
                       onPressed: () async {
-                        final driverId = data['driverId'];
-
-                        await FirebaseFirestore.instance
+                        final rideRef = FirebaseFirestore.instance
                             .collection('ride_requests')
-                            .doc(requests.first.id)
-                            .update({
-                              'status': 'cancelled',
-                              'cancelledBy': 'passenger',
-                              'cancelledAt': FieldValue.serverTimestamp(),
-                            });
+                            .doc(requests.first.id);
+
+                        final rideSnapshot = await rideRef.get();
+
+                        if (!rideSnapshot.exists) return;
+
+                        final freshData =
+                            rideSnapshot.data() as Map<String, dynamic>;
+
+                        final driverId = freshData['driverId'];
+
+                        debugPrint('PASSENGER CANCEL driverId = $driverId');
+
+                        await rideRef.update({
+                          'status': 'cancelled',
+                          'cancelledBy': 'passenger',
+                          'cancelledAt': FieldValue.serverTimestamp(),
+                        });
 
                         if (driverId != null &&
                             driverId.toString().isNotEmpty) {
-                          await FirebaseFirestore.instance
-                              .collection('notifications')
-                              .add({
-                                'userId': driverId,
-                                'title': 'Trajet annulé',
-                                'message':
-                                    '${data['name'] ?? 'Un passager'} a annulé sa demande.',
-                                'type': 'ride_cancelled',
-                                'rideId': requests.first.id,
-                                'read': false,
-                                'createdAt': FieldValue.serverTimestamp(),
-                              });
+                          await createNotification(
+                            userId: driverId.toString(),
+                            title: 'Trajet annulé',
+                            message:
+                                '${freshData['name'] ?? 'Un passager'} a annulé sa demande.',
+                            type: 'ride_cancelled',
+                          );
+
+                          debugPrint('NOTIFICATION SENT TO DRIVER: $driverId');
+                        } else {
+                          debugPrint(
+                            'NO DRIVER ID FOUND. Ride was not assigned yet.',
+                          );
                         }
                       },
                       style: OutlinedButton.styleFrom(
@@ -1130,6 +1299,7 @@ class _PassengerSection extends StatelessWidget {
   }
 }
 
+//meeting point
 class _MeetingPointDropdown extends StatelessWidget {
   final String? selectedMeetingPoint;
   final List<String> meetingPoints;
@@ -1604,6 +1774,15 @@ class _DriverSection extends StatelessWidget {
 
     if (status == 'completed') {
       updateData['rideCompletedAt'] = FieldValue.serverTimestamp();
+
+      updateData['driverId'] = FieldValue.delete();
+      updateData['driverName'] = FieldValue.delete();
+      updateData['driverPhone'] = FieldValue.delete();
+      updateData['driverZone'] = FieldValue.delete();
+      updateData['driverProfileImageUrl'] = FieldValue.delete();
+      updateData['driverCarModel'] = FieldValue.delete();
+      updateData['driverCarColor'] = FieldValue.delete();
+      updateData['driverPlateNumber'] = FieldValue.delete();
     }
 
     await FirebaseFirestore.instance
@@ -1614,14 +1793,45 @@ class _DriverSection extends StatelessWidget {
 
   //accepting ride function
   Future<void> acceptRide(String rideId) async {
-    await FirebaseFirestore.instance
+    final driver = FirebaseAuth.instance.currentUser;
+    if (driver == null) return;
+
+    final rideRef = FirebaseFirestore.instance
         .collection('ride_requests')
-        .doc(rideId)
-        .update({
-          'status': 'assigned',
-          'driverId': FirebaseAuth.instance.currentUser?.uid,
-          'acceptedAt': FieldValue.serverTimestamp(),
-        });
+        .doc(rideId);
+
+    final rideDoc = await rideRef.get();
+    if (!rideDoc.exists) return;
+
+    final data = rideDoc.data() as Map<String, dynamic>;
+    final passengerId = data['userId'];
+
+    final driverDoc = await FirebaseFirestore.instance
+        .collection('users')
+        .doc(driver.uid)
+        .get();
+
+    final driverData = driverDoc.data() ?? {};
+
+    await rideRef.update({
+      'status': 'assigned',
+      'driverId': driver.uid,
+      'driverName': driverData['fullName'] ?? '',
+      'driverPhone': driverData['phone'] ?? '',
+      'driverZone': driverData['zone'] ?? '',
+      'driverProfileImageUrl': driverData['profileImageUrl'] ?? '',
+      'acceptedAt': FieldValue.serverTimestamp(),
+      'driverCarModel': driverData['carModel'] ?? '',
+      'driverCarColor': driverData['carColor'] ?? '',
+      'driverPlateNumber': driverData['plateNumber'] ?? '',
+    });
+
+    await createNotification(
+      userId: passengerId,
+      title: 'Trajet accepté',
+      message: 'Un chauffeur a accepté votre demande.',
+      type: 'ride_accepted',
+    );
   }
 
   //appening address in google maps
@@ -1686,79 +1896,116 @@ class _DriverSection extends StatelessWidget {
                       nextStatus = 'completed';
                     }
 
-                    return Container(
-                      width: double.infinity,
-                      margin: const EdgeInsets.only(bottom: 12),
-                      padding: const EdgeInsets.all(14),
-                      decoration: BoxDecoration(
-                        color: const Color.fromARGB(255, 28, 28, 47),
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            data['name'] ?? 'Passager',
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 12,
-                              fontWeight: FontWeight.bold,
+                    return GestureDetector(
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => RideUserProfilePage(
+                              role: 'passenger',
+                              name: data['name'] ?? '',
+                              phone: data['phone'] ?? '',
+                              zone: data['zone'] ?? '',
+                              profileImageUrl: data['profileImageUrl'] ?? '',
                             ),
                           ),
-                          const SizedBox(height: 8),
-                          GestureDetector(
-                            onTap: () =>
-                                openAddressInMaps(data['pickupAddress'] ?? ''),
-                            child: Text(
-                              'Départ : ${data['pickupAddress'] ?? ''}',
-                              style: const TextStyle(
-                                color: Colors.green,
-                                fontSize: 13,
-                                decoration: TextDecoration.underline,
+                        );
+                      },
+                      child: Container(
+                        width: double.infinity,
+                        margin: const EdgeInsets.only(bottom: 12),
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          color: const Color.fromARGB(255, 28, 28, 47),
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    data['name'] ?? 'Passager',
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ),
+                                const Icon(
+                                  CupertinoIcons.chevron_right,
+                                  color: Colors.white54,
+                                  size: 18,
+                                ),
+                              ],
+                            ),
+
+                            const SizedBox(height: 8),
+
+                            GestureDetector(
+                              onTap: () => openAddressInMaps(
+                                data['pickupAddress'] ?? '',
                               ),
-                            ),
-                          ),
-                          const SizedBox(height: 6),
-                          GestureDetector(
-                            onTap: () =>
-                                openAddressInMaps(data['dropoffAddress'] ?? ''),
-                            child: Text(
-                              'Destination : ${data['dropoffAddress'] ?? ''}',
-                              style: const TextStyle(
-                                color: Colors.green,
-                                fontSize: 13,
-                                decoration: TextDecoration.underline,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 6),
-                          Text(
-                            'Statut : ${_statusLabel(status)}',
-                            style: const TextStyle(
-                              color: Colors.white60,
-                              fontSize: 12,
-                            ),
-                          ),
-                          const SizedBox(height: 14),
-                          SizedBox(
-                            width: double.infinity,
-                            height: 46,
-                            child: ElevatedButton(
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.green,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(14),
+                              child: Text(
+                                'Départ : ${data['pickupAddress'] ?? ''}',
+                                style: const TextStyle(
+                                  color: Colors.green,
+                                  fontSize: 13,
+                                  decoration: TextDecoration.underline,
                                 ),
                               ),
-                              onPressed: () =>
-                                  updateRideStatus(doc.id, nextStatus),
+                            ),
+
+                            const SizedBox(height: 6),
+
+                            GestureDetector(
+                              onTap: () => openAddressInMaps(
+                                data['dropoffAddress'] ?? '',
+                              ),
                               child: Text(
-                                buttonText,
-                                style: const TextStyle(color: Colors.white),
+                                'Destination : ${data['dropoffAddress'] ?? ''}',
+                                style: const TextStyle(
+                                  color: Colors.green,
+                                  fontSize: 13,
+                                  decoration: TextDecoration.underline,
+                                ),
                               ),
                             ),
-                          ),
-                        ],
+
+                            const SizedBox(height: 6),
+
+                            Text(
+                              'Statut : ${_statusLabel(status)}',
+                              style: const TextStyle(
+                                color: Colors.white60,
+                                fontSize: 12,
+                              ),
+                            ),
+
+                            const SizedBox(height: 14),
+
+                            SizedBox(
+                              width: double.infinity,
+                              height: 46,
+                              child: ElevatedButton(
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.green,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(14),
+                                  ),
+                                ),
+                                onPressed: () =>
+                                    updateRideStatus(doc.id, nextStatus),
+                                child: Text(
+                                  buttonText,
+                                  style: const TextStyle(color: Colors.white),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     );
                   }).toList(),

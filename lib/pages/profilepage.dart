@@ -232,6 +232,28 @@ class _UserProfilePageState extends State<UserProfilePage> {
                   });
 
                   await updateUserField('phone', newPhone);
+                  final user = FirebaseAuth.instance.currentUser;
+
+                  if (user != null) {
+                    final activeRides = await FirebaseFirestore.instance
+                        .collection('ride_requests')
+                        .where('userId', isEqualTo: user.uid)
+                        .where(
+                          'status',
+                          whereIn: [
+                            'waiting',
+                            'assigned',
+                            'on_the_way',
+                            'driver_arrived',
+                            'picked_up',
+                          ],
+                        )
+                        .get();
+
+                    for (final ride in activeRides.docs) {
+                      await ride.reference.update({'phone': newPhone});
+                    }
+                  }
                 }
 
                 if (context.mounted) Navigator.pop(context);
