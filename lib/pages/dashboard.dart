@@ -749,7 +749,7 @@ class _PassengerSection extends StatelessWidget {
               'driver_arrived',
               'picked_up',
               'no_driver_found',
-              'completed',
+              'payment_pending',
             ],
           )
           .snapshots(),
@@ -760,10 +760,9 @@ class _PassengerSection extends StatelessWidget {
           final data = requests.first.data() as Map<String, dynamic>;
           final status = data['status'] ?? 'waiting';
 
-          if (status == 'completed' && data['contributionPopupShown'] != true) {
-            Future.delayed(const Duration(milliseconds: 500), () async {
-              if (!context.mounted) return;
-
+          if (status == 'payment_pending' &&
+              data['contributionPopupShown'] != true) {
+            Future.microtask(() async {
               await FirebaseFirestore.instance
                   .collection('ride_requests')
                   .doc(requests.first.id)
@@ -791,7 +790,18 @@ class _PassengerSection extends StatelessWidget {
                     ),
                     actions: [
                       TextButton(
-                        onPressed: () => Navigator.pop(context),
+                        onPressed: () async {
+                          await FirebaseFirestore.instance
+                              .collection('ride_requests')
+                              .doc(requests.first.id)
+                              .update({
+                                'status': 'completed',
+                                'contributionPopupShown': true,
+                                'closedAt': FieldValue.serverTimestamp(),
+                              });
+
+                          if (context.mounted) Navigator.pop(context);
+                        },
                         child: const Text(
                           'Fermer',
                           style: TextStyle(color: Colors.white70),
@@ -817,25 +827,29 @@ class _PassengerSection extends StatelessWidget {
                   minHeight: 8,
                   borderRadius: BorderRadius.circular(20),
                 ),
-                const SizedBox(height: 18),
-                Text(
-                  'Point de départ : ${data['pickupAddress'] ?? ''}',
-                  style: const TextStyle(color: Colors.white70),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'Destination : ${data['dropoffAddress'] ?? ''}',
-                  style: const TextStyle(color: Colors.white70),
-                ),
+                // const SizedBox(height: 18),
+                // Text(
+                //   'Point de départ : ${data['pickupAddress'] ?? ''}',
+                //   style: const TextStyle(color: Colors.white70),
+                // ),
+                // const SizedBox(height: 8),
+                // Text(
+                //   'Destination : ${data['dropoffAddress'] ?? ''}',
+                //   style: const TextStyle(color: Colors.white70),
+                // ),
                 if (status == 'assigned' ||
                     status == 'on_the_way' ||
                     status == 'driver_arrived' ||
-                    status == 'picked_up' ||
-                    status == 'completed') ...[
+                    status == 'picked_up') ...[
                   const SizedBox(height: 16),
 
                   GestureDetector(
                     onTap: () {
+                      if (data['driverName'] == null ||
+                          data['driverName'].toString().isEmpty) {
+                        return;
+                      }
+
                       Navigator.push(
                         context,
                         MaterialPageRoute(
@@ -853,68 +867,69 @@ class _PassengerSection extends StatelessWidget {
                         ),
                       );
                     },
-
                     child: Container(
                       width: double.infinity,
+                      margin: const EdgeInsets.only(top: 18),
                       padding: const EdgeInsets.all(14),
                       decoration: BoxDecoration(
-                        color: Colors.green.withValues(alpha: 0.12),
+                        color: const Color.fromARGB(255, 28, 28, 47),
                         borderRadius: BorderRadius.circular(14),
-                        border: Border.all(
-                          color: Colors.green.withValues(alpha: 0.5),
-                        ),
                       ),
-                      child: Row(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          CircleAvatar(
-                            radius: 22,
-                            backgroundColor: Colors.white,
-                            backgroundImage:
-                                (data['driverProfileImageUrl'] != null &&
-                                    data['driverProfileImageUrl']
-                                        .toString()
-                                        .startsWith('https://'))
-                                ? NetworkImage(data['driverProfileImageUrl'])
-                                : null,
-                            child:
-                                (data['driverProfileImageUrl'] == null ||
-                                    data['driverProfileImageUrl']
-                                        .toString()
-                                        .isEmpty)
-                                ? const Icon(
-                                    CupertinoIcons.person_fill,
-                                    color: Colors.green,
-                                  )
-                                : null,
-                          ),
-                          const SizedBox(width: 12),
-
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
+                          if (data['driverName'] != null &&
+                              data['driverName'].toString().isNotEmpty)
+                            Row(
                               children: [
-                                Text(
-                                  data['driverName'] ?? 'Chauffeur',
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.bold,
+                                Expanded(
+                                  child: Text(
+                                    data['driverName'] ?? 'Chauffeur',
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.bold,
+                                    ),
                                   ),
                                 ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  data['driverPhone'] ?? '',
-                                  style: const TextStyle(
-                                    color: Colors.white70,
-                                    fontSize: 12,
-                                  ),
+                                const Icon(
+                                  CupertinoIcons.chevron_right,
+                                  color: Colors.white54,
+                                  size: 18,
                                 ),
                               ],
                             ),
+
+                          if (data['driverName'] != null &&
+                              data['driverName'].toString().isNotEmpty)
+                            const SizedBox(height: 8),
+
+                          Text(
+                            'Départ : ${data['pickupAddress'] ?? ''}',
+                            style: const TextStyle(
+                              color: Colors.green,
+                              fontSize: 13,
+                            ),
                           ),
 
-                          const Icon(
-                            CupertinoIcons.chevron_right,
-                            color: Colors.white54,
+                          const SizedBox(height: 6),
+
+                          Text(
+                            'Destination : ${data['dropoffAddress'] ?? ''}',
+                            style: const TextStyle(
+                              color: Colors.green,
+                              fontSize: 13,
+                            ),
+                          ),
+
+                          const SizedBox(height: 6),
+
+                          Text(
+                            'Statut : ${statusTitle(status)}',
+                            style: const TextStyle(
+                              color: Colors.white60,
+                              fontSize: 12,
+                            ),
                           ),
                         ],
                       ),
@@ -948,21 +963,21 @@ class _PassengerSection extends StatelessWidget {
                       ),
                     ),
                   ),
-                if (status == 'driver_arrived')
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(14),
-                    decoration: BoxDecoration(
-                      color: Colors.green.withValues(alpha: 0.15),
-                      borderRadius: BorderRadius.circular(14),
-                      border: Border.all(color: Colors.green),
-                    ),
-                    child: const Text(
-                      'Votre chauffeur est arrivé. Veuillez vous rendre au point de ramassage.',
-                      style: TextStyle(color: Colors.white),
-                    ),
-                  ),
 
+                // if (status == 'driver_arrived')
+                //   Container(
+                //     width: double.infinity,
+                //     padding: const EdgeInsets.all(14),
+                //     decoration: BoxDecoration(
+                //       color: Colors.green.withValues(alpha: 0.15),
+                //       borderRadius: BorderRadius.circular(14),
+                //       border: Border.all(color: Colors.green),
+                //     ),
+                //     child: const Text(
+                //       'Votre chauffeur est arrivé. Veuillez vous rendre au point de ramassage.',
+                //       style: TextStyle(color: Colors.white),
+                //     ),
+                //   ),
                 if (status == 'waiting' || status == 'assigned') ...[
                   const SizedBox(height: 16),
 
@@ -1861,7 +1876,14 @@ class _DriverSection extends StatelessWidget {
           .where('driverId', isEqualTo: driver.uid)
           .where(
             'status',
-            whereIn: ['assigned', 'on_the_way', 'driver_arrived', 'picked_up'],
+            whereIn: [
+              'waiting',
+              'assigned',
+              'on_the_way',
+              'driver_arrived',
+              'picked_up',
+              'no_driver_found',
+            ],
           )
           .snapshots(),
       builder: (context, activeSnapshot) {
@@ -1893,7 +1915,7 @@ class _DriverSection extends StatelessWidget {
 
                     if (status == 'picked_up') {
                       buttonText = 'Terminer le trajet';
-                      nextStatus = 'completed';
+                      nextStatus = 'payment_pending';
                     }
 
                     return GestureDetector(

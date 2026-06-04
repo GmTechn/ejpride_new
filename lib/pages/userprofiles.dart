@@ -1,5 +1,6 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class RideUserProfilePage extends StatelessWidget {
   final String role;
@@ -154,12 +155,26 @@ class _InfoTile extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 3),
-                Text(
-                  text,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
+                GestureDetector(
+                  onTap: label == 'Téléphone'
+                      ? () async {
+                          final uri = Uri(scheme: 'tel', path: text);
+
+                          if (await canLaunchUrl(uri)) {
+                            await launchUrl(uri);
+                          }
+                        }
+                      : null,
+                  child: Text(
+                    text,
+                    style: TextStyle(
+                      color: label == 'Téléphone' ? Colors.green : Colors.white,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      decoration: label == 'Téléphone'
+                          ? TextDecoration.underline
+                          : TextDecoration.none,
+                    ),
                   ),
                 ),
               ],
