@@ -4,7 +4,39 @@ import 'package:ejp_ride_version/pages/dashboard.dart';
 import 'package:ejp_ride_version/pages/login.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
+
+Future<void> setupPushNotifications() async {
+  final messaging = FirebaseMessaging.instance;
+
+  await messaging.requestPermission(alert: true, badge: true, sound: true);
+
+  final token = await messaging.getToken();
+  debugPrint('====================');
+  debugPrint('FCM TOKEN = $token');
+  debugPrint('====================');
+
+  debugPrint('FCM TOKEN: $token');
+
+  final user = FirebaseAuth.instance.currentUser;
+
+  if (user != null && token != null) {
+    await FirebaseFirestore.instance.collection('users').doc(user.uid).update({
+      'fcmToken': token,
+    });
+  }
+
+  FirebaseMessaging.instance.onTokenRefresh.listen((newToken) async {
+    final user = FirebaseAuth.instance.currentUser;
+
+    if (user != null) {
+      await FirebaseFirestore.instance.collection('users').doc(user.uid).update(
+        {'fcmToken': newToken},
+      );
+    }
+  });
+}
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -18,6 +50,8 @@ void main() async {
       rethrow;
     }
   }
+
+  await setupPushNotifications();
 
   runApp(const MyApp());
 }

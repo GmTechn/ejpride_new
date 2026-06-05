@@ -1804,6 +1804,49 @@ class _DriverSection extends StatelessWidget {
         .collection('ride_requests')
         .doc(rideId)
         .update(updateData);
+
+    final rideDoc = await FirebaseFirestore.instance
+        .collection('ride_requests')
+        .doc(rideId)
+        .get();
+
+    final rideData = rideDoc.data() as Map<String, dynamic>;
+    final passengerId = rideData['userId'];
+
+    if (status == 'driver_arrived') {
+      await createNotification(
+        userId: passengerId,
+        title: 'Votre chauffeur est arrivé 🚗',
+        message: 'Votre chauffeur est arrivé au point de ramassage.',
+        type: 'driver_arrived',
+      );
+    }
+    if (status == 'on_the_way') {
+      await createNotification(
+        userId: passengerId,
+        title: 'Chauffeur en route',
+        message: 'Votre chauffeur est en route vers vous.',
+        type: 'driver_on_the_way',
+      );
+    }
+
+    if (status == 'picked_up') {
+      await createNotification(
+        userId: passengerId,
+        title: 'Trajet commencé',
+        message: 'Vous êtes maintenant en route.',
+        type: 'ride_started',
+      );
+    }
+
+    if (status == 'completed') {
+      await createNotification(
+        userId: passengerId,
+        title: 'Trajet terminé',
+        message: 'Merci d’avoir utilisé EJP Ride.',
+        type: 'ride_completed',
+      );
+    }
   }
 
   //accepting ride function

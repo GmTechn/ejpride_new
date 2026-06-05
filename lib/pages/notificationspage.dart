@@ -84,28 +84,57 @@ class NotificationsPage extends StatelessWidget {
                     final data = doc.data() as Map<String, dynamic>;
                     final read = data['read'] == true;
 
-                    return ListTile(
-                      leading: Icon(
-                        read ? CupertinoIcons.bell : CupertinoIcons.bell_fill,
-                        color: read ? Colors.white38 : Colors.green,
-                      ),
-                      title: Text(
-                        data['title'] ?? '',
-                        style: TextStyle(
-                          color: read ? Colors.white54 : Colors.white,
-                          fontWeight: read ? FontWeight.w500 : FontWeight.w700,
+                    return Dismissible(
+                      key: Key(doc.id),
+                      direction: DismissDirection.endToStart,
+                      background: Container(
+                        alignment: Alignment.centerRight,
+                        padding: const EdgeInsets.only(right: 20),
+                        decoration: BoxDecoration(
+                          color: Colors.red,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: const Icon(
+                          CupertinoIcons.delete,
+                          color: Colors.white,
                         ),
                       ),
-                      subtitle: Text(
-                        data['message'] ?? '',
-                        style: const TextStyle(
-                          color: Colors.white60,
-                          fontSize: 12,
-                        ),
-                      ),
-                      onTap: () async {
-                        await doc.reference.update({'read': true});
+                      onDismissed: (_) async {
+                        await doc.reference.delete();
+
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Notification supprimée'),
+                            ),
+                          );
+                        }
                       },
+                      child: ListTile(
+                        leading: Icon(
+                          read ? CupertinoIcons.bell : CupertinoIcons.bell_fill,
+                          color: read ? Colors.white38 : Colors.green,
+                        ),
+                        title: Text(
+                          data['title'] ?? '',
+                          style: TextStyle(
+                            color: read ? Colors.white54 : Colors.white,
+                            fontWeight: read
+                                ? FontWeight.w500
+                                : FontWeight.w700,
+                          ),
+                        ),
+                        subtitle: Text(
+                          data['message'] ?? '',
+                          style: const TextStyle(
+                            color: Colors.white60,
+                            fontSize: 12,
+                          ),
+                        ),
+                        onTap: () async {
+                          await doc.reference.update({'read': true});
+                        },
+                      ),
                     );
                   },
                 );
